@@ -1,3 +1,3 @@
-class Extractor:
-    def __init__(self):
-        pass
+from extractdebug.extractors.dwarf import DwarfExtractor
+
+all_extractors = [DwarfExtractor]
