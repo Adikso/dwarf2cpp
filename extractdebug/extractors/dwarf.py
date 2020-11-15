@@ -1,7 +1,21 @@
+from dotmap import DotMap
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
 from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method
+
+
+class Tag:
+    CLASS_NAME = 'DW_TAG_class_type'
+    BASE_TYPE = 'DW_TAG_base_type'
+    MEMBER = 'DW_TAG_member'
+    SUB_PROGRAM = 'DW_TAG_subprogram'
+
+
+class Attribute:
+    NAME = 'DW_AT_name'
+    TYPE = 'DW_AT_type'
+    ACCESSIBILITY = 'DW_AT_accessibility'
 
 
 class DwarfExtractor(Extractor):
@@ -21,34 +35,44 @@ class DwarfExtractor(Extractor):
         dwarf_info = elf_file.get_dwarf_info()
 
         for cu in dwarf_info.iter_CUs():
-            top_die = cu.get_top_DIE()
-            for child in top_die.iter_children():
-                if child.tag == 'DW_TAG_class_type':
-                    self._classes.append(self._parse_class_type(child))
-                elif child.tag == 'DW_TAG_base_type':
-                    self._types[child.offset] = child
+            self._parse_compilation_unit(cu)
 
         return ExtractorResult(file, self._classes)
 
+    def _parse_compilation_unit(self, cu):
+        top_die = cu.get_top_DIE()
+        for child in top_die.iter_children():
+            if child.tag == Tag.CLASS_NAME:
+                self._classes.append(self._parse_class_type(child))
+            elif child.tag == Tag.BASE_TYPE:
+                self._types[child.offset] = child
+
     def _parse_class_type(self, die):
-        class_name = die.attributes['DW_AT_name'].value
+        class_name = die.attributes[Attribute.NAME].value
         members = []
 
         for child in die.iter_children():
-            # Common attributes
-            name = child.attributes['DW_AT_name'].value
-            type_id = child.attributes['DW_AT_type'].value
-            die_type = self._types[type_id].attributes['DW_AT_name'].value
-
-            if 'DW_AT_accessibility' not in child.attributes:
-                accessibility = Accessibility.private.value
-            else:
-                accessibility = child.attributes['DW_AT_accessibility'].value
+            attrs = self._get_attributes(child)
 
             # Tag specific attributes
-            if child.tag == 'DW_TAG_subprogram':
-                members.append(Method(name, die_type, accessibility))
-            elif child.tag == 'DW_TAG_member':
-                members.append(Field(name, die_type, accessibility))
+            if child.tag == Tag.SUB_PROGRAM:
+                members.append(Method(attrs.name, attrs.die_type, attrs.accessibility))
+            elif child.tag == Tag.MEMBER:
+                members.append(Field(attrs.name, attrs.die_type, attrs.accessibility))
 
         return Class(class_name, members)
+
+    # Helpers
+    def _get_attributes(self, die):
+        attrs = dict([(attribute.name.replace('DW_AT_', ''), attribute.value) for attribute in die.attributes.values()])
+        attrs['accessibility'] = self._get_accessibility(die)
+        if attrs['type'] in self._types:
+            attrs['die_type'] = self._types[attrs['type']].attributes[Attribute.NAME].value
+        return DotMap(attrs)
+
+    @staticmethod
+    def _get_accessibility(die):
+        if Attribute.ACCESSIBILITY in die.attributes:
+            return die.attributes[Attribute.ACCESSIBILITY].value
+
+        return Accessibility.private.value
