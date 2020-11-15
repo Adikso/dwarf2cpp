@@ -39,7 +39,12 @@ class CPPMethod:
         self.accessibility = accessibility
 
     def __repr__(self):
-        return f'{self.type.name.decode("utf-8")} {self.name}({", ".join([str(x) for x in self.parameters])});'
+        params_string = ", ".join([str(x) for x in self.parameters])
+
+        if self.type:
+            return f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name}({params_string});'
+        else:
+            return f'{self.name}({params_string});'
 
 
 class CPPField:

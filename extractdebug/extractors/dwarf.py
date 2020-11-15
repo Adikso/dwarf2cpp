@@ -1,4 +1,3 @@
-from dotmap import DotMap
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
@@ -60,15 +59,16 @@ class DwarfExtractor(Extractor):
         for child in die.iter_children():
             attrs = child.attributes
             accessibility = self._get_accessibility(child)
-            type = self._resolve_type(child)
+            class_type = self._resolve_type(child)
 
             # Tag specific attributes
             if child.tag == Tag.SUB_PROGRAM:
-                method = Method(attrs[Attribute.NAME].value, type, accessibility)
+                method = Method(attrs[Attribute.NAME].value, class_type, accessibility)
                 members.append(method)
                 self._subprograms[child.offset] = method
             elif child.tag == Tag.MEMBER:
-                members.append(Field(attrs[Attribute.NAME].value, type, accessibility))
+                field = Field(attrs[Attribute.NAME].value, class_type, accessibility)
+                members.append(field)
 
         return Class(class_name, members)
 
@@ -81,11 +81,15 @@ class DwarfExtractor(Extractor):
         for child in die.iter_children():
             attrs = child.attributes
             if child.tag == Tag.PARAMETER:
-                type = self._resolve_type(child)
-                existing_method.parameters.append(Parameter(attrs[Attribute.NAME].value, type))
+                param_type = self._resolve_type(child)
+                param = Parameter(attrs[Attribute.NAME].value, param_type)
+                existing_method.parameters.append(param)
 
     def _resolve_type(self, die):
         resolved_type = Type()
+
+        if Attribute.TYPE not in die.attributes:
+            return None
 
         entry = die.cu.get_DIE_from_refaddr(die.attributes[Attribute.TYPE].value)
         while Attribute.NAME not in entry.attributes:
