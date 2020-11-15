@@ -85,7 +85,8 @@ class DwarfExtractor(Extractor):
                 param = Parameter(attrs[Attribute.NAME].value, param_type)
                 existing_method.parameters.append(param)
 
-    def _resolve_type(self, die):
+    @staticmethod
+    def _resolve_type(die):
         resolved_type = Type()
 
         if Attribute.TYPE not in die.attributes:
