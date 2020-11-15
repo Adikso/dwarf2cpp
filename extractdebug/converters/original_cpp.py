@@ -14,31 +14,42 @@ class OriginalCPPConverter(Converter):
                 if isinstance(member, Field):
                     members.append(CPPField(Accessibility(member.accessibility), member.type, member.name))
                 elif isinstance(member, Method):
-                    members.append(CPPMethod(Accessibility(member.accessibility), member.type, member.name))
+                    parameters = [CPPParameter(x.name, x.type) for x in member.parameters if x.name != b'this']
+                    members.append(CPPMethod(Accessibility(member.accessibility), member.type, member.name, parameters))
 
             classes.append(CPPClass(cls.name, members))
 
         return classes[0]
 
 
-class CPPMethod:
-    def __init__(self, accessibility, type, name):
+class CPPParameter:
+    def __init__(self, name, type):
         self.name = name.decode("utf-8")
-        self.type = type.decode("utf-8")
+        self.type = type
+
+    def __repr__(self):
+        return f'{self.type.name.decode("utf-8")} {self.name}'
+
+
+class CPPMethod:
+    def __init__(self, accessibility, type, name, parameters):
+        self.name = name.decode("utf-8")
+        self.type = type
+        self.parameters = parameters
         self.accessibility = accessibility
 
     def __repr__(self):
-        return f'{self.type} {self.name}();'
+        return f'{self.type.name.decode("utf-8")} {self.name}({", ".join([str(x) for x in self.parameters])});'
 
 
 class CPPField:
     def __init__(self, accessibility, type, name):
         self.name = name.decode("utf-8")
-        self.type = type.decode("utf-8")
+        self.type = type
         self.accessibility = accessibility
 
     def __repr__(self):
-        return f'{self.type} {self.name};'
+        return f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name};'
 
 
 class CPPBlock:

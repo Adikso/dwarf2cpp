@@ -42,11 +42,28 @@ class Field:
         return f'Field{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
 
 
+class Parameter:
+    def __init__(self, name, type):
+        self.name = name
+        self.type = type
+
+
+class Type:
+    def __init__(self, name=None, pointer=False, constant=False):
+        self.name = name
+        self.pointer = pointer
+        self.constant = constant
+
+
 class Method:
-    def __init__(self, name, type, accessibility):
+    def __init__(self, name, type, accessibility, parameters=None):
+        if parameters is None:
+            parameters = []
+
         self.name = name
         self.type = type
         self.accessibility = accessibility
+        self.parameters = parameters
 
     def __repr__(self):
         return f'Method{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
