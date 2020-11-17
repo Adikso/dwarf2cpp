@@ -23,16 +23,23 @@ class OriginalCPPConverter(Converter):
 
     @staticmethod
     def generate_type_modifiers_str(modifiers):
+        def append_token(text, token):
+            if i > 0:
+                text += ' '
+            text += token
+            if i != len(modifiers) - 1:
+                text += ' '
+
+            return text
+
         result = ''
         for i, modifier in enumerate(modifiers):
             if modifier == TypeModifier.pointer:
                 result += '*'
             elif modifier == TypeModifier.constant:
-                if i > 0:
-                    result += ' '
-                result += 'const'
-                if i != len(modifiers) - 1:
-                    result += ' '
+                result = append_token(result, 'const')
+            elif modifier == TypeModifier.volatile:
+                result = append_token(result, 'volatile')
 
         if modifiers:
             result = ' ' + result

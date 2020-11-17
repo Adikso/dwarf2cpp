@@ -59,6 +59,7 @@ class Type:
 class TypeModifier(Enum):
     pointer = 0
     constant = 1
+    volatile = 2
 
 
 class Method:
