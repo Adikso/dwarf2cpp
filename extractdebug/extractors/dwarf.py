@@ -7,7 +7,6 @@ from extractdebug.extractors.extractor import Extractor, Field, Class, Extractor
 class Tag:
     CLASS_NAME = 'DW_TAG_class_type'
     BASE_TYPE = 'DW_TAG_base_type'
-    CLASS_TYPE = 'DW_TAG_class_type'
     CONST_TYPE = 'DW_TAG_const_type'
     POINTER_TYPE = 'DW_TAG_pointer_type'
     MEMBER = 'DW_TAG_member'
@@ -84,7 +83,7 @@ class DwarfExtractor(Extractor):
                 )
                 members.append(field)
 
-        return Class(class_name, members)
+        return Class(name=class_name, members=members)
 
     def _parse_sub_program(self, die):
         attrs = die.attributes
