@@ -12,10 +12,10 @@ class OriginalCPPConverter(Converter):
             members = []
             for member in cls.members:
                 if isinstance(member, Field):
-                    members.append(CPPField(Accessibility(member.accessibility), member.type, member.name))
+                    members.append(CPPField(Accessibility(member.accessibility), member.type, member.name, member.static))
                 elif isinstance(member, Method):
                     parameters = [CPPParameter(x.name, x.type) for x in member.parameters if x.name != b'this']
-                    members.append(CPPMethod(Accessibility(member.accessibility), member.type, member.name, parameters))
+                    members.append(CPPMethod(Accessibility(member.accessibility), member.type, member.name, member.static, parameters))
 
             classes.append(CPPClass(cls.name, members))
 
@@ -32,29 +32,40 @@ class CPPParameter:
 
 
 class CPPMethod:
-    def __init__(self, accessibility, type, name, parameters):
+    def __init__(self, accessibility, type, name, static, parameters):
         self.name = name.decode("utf-8")
         self.type = type
+        self.static = static
         self.parameters = parameters
         self.accessibility = accessibility
 
     def __repr__(self):
         params_string = ", ".join([str(x) for x in self.parameters])
+        basic_output = f'{self.name}({params_string});'
 
         if self.type:
-            return f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name}({params_string});'
-        else:
-            return f'{self.name}({params_string});'
+            basic_output = f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}' + basic_output
+
+        if self.static:
+            basic_output = 'static ' + basic_output
+
+        return basic_output
 
 
 class CPPField:
-    def __init__(self, accessibility, type, name):
+    def __init__(self, accessibility, type, name, static):
         self.name = name.decode("utf-8")
         self.type = type
         self.accessibility = accessibility
+        self.static = static
 
     def __repr__(self):
-        return f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name};'
+        basic_output = f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name};'
+
+        if self.static:
+            basic_output = 'static ' + basic_output
+
+        return basic_output
 
 
 class CPPBlock:

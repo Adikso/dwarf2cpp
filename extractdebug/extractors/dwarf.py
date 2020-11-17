@@ -20,6 +20,8 @@ class Attribute:
     TYPE = 'DW_AT_type'
     ACCESSIBILITY = 'DW_AT_accessibility'
     SPECIFICATION = 'DW_AT_specification'
+    OBJECT_POINTER = 'DW_AT_object_pointer'
+    DATA_MEMBER_LOCATION = 'DW_AT_data_member_location'
 
 
 class DwarfExtractor(Extractor):
@@ -63,11 +65,21 @@ class DwarfExtractor(Extractor):
 
             # Tag specific attributes
             if child.tag == Tag.SUB_PROGRAM:
-                method = Method(attrs[Attribute.NAME].value, class_type, accessibility)
+                method = Method(
+                    name=attrs[Attribute.NAME].value,
+                    type=class_type,
+                    accessibility=accessibility,
+                    static=Attribute.OBJECT_POINTER not in attrs
+                )
                 members.append(method)
                 self._subprograms[child.offset] = method
             elif child.tag == Tag.MEMBER:
-                field = Field(attrs[Attribute.NAME].value, class_type, accessibility)
+                field = Field(
+                    name=attrs[Attribute.NAME].value,
+                    type=class_type,
+                    accessibility=accessibility,
+                    static=Attribute.DATA_MEMBER_LOCATION not in attrs
+                )
                 members.append(field)
 
         return Class(class_name, members)
@@ -82,8 +94,10 @@ class DwarfExtractor(Extractor):
             attrs = child.attributes
             if child.tag == Tag.PARAMETER:
                 param_type = self._resolve_type(child)
-                param = Parameter(attrs[Attribute.NAME].value, param_type)
-                existing_method.parameters.append(param)
+                existing_method.parameters.append(Parameter(
+                    name=attrs[Attribute.NAME].value,
+                    type=param_type
+                ))
 
     @staticmethod
     def _resolve_type(die):

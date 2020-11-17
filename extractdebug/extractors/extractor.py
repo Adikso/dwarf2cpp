@@ -33,10 +33,11 @@ class Accessibility(Enum):
 
 
 class Field:
-    def __init__(self, name, type, accessibility):
+    def __init__(self, name, type, accessibility, static):
         self.name = name
         self.type = type
         self.accessibility = accessibility
+        self.static = static
 
     def __repr__(self):
         return f'Field{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
@@ -56,13 +57,14 @@ class Type:
 
 
 class Method:
-    def __init__(self, name, type, accessibility, parameters=None):
+    def __init__(self, name, type, accessibility, static=False, parameters=None):
         if parameters is None:
             parameters = []
 
         self.name = name
         self.type = type
         self.accessibility = accessibility
+        self.static = static
         self.parameters = parameters
 
     def __repr__(self):
