@@ -10,6 +10,7 @@ class Tag:
     CONST_TYPE = 'DW_TAG_const_type'
     POINTER_TYPE = 'DW_TAG_pointer_type'
     VOLATILE_TYPE = 'DW_TAG_volatile_type'
+    REFERENCE_TYPE = 'DW_TAG_reference_type'
     MEMBER = 'DW_TAG_member'
     SUB_PROGRAM = 'DW_TAG_subprogram'
     PARAMETER = 'DW_TAG_formal_parameter'
@@ -119,6 +120,9 @@ class DwarfExtractor(Extractor):
 
             if entry.tag == Tag.VOLATILE_TYPE:
                 modifiers.insert(0, TypeModifier.volatile)
+
+            if entry.tag == Tag.REFERENCE_TYPE:
+                modifiers.insert(0, TypeModifier.reference)
 
             if Attribute.TYPE not in entry.attributes:
                 return None

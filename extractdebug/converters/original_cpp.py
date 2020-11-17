@@ -40,6 +40,8 @@ class OriginalCPPConverter(Converter):
                 result = append_token(result, 'const')
             elif modifier == TypeModifier.volatile:
                 result = append_token(result, 'volatile')
+            elif modifier == TypeModifier.reference:
+                result += '&'
 
         if modifiers:
             result = ' ' + result
@@ -52,7 +54,8 @@ class CPPParameter:
         self.type = type
 
     def __repr__(self):
-        return f'{self.type.name.decode("utf-8")} {self.name}'
+        modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
+        return f'{self.type.name.decode("utf-8")}{modifier_str}{self.name}'
 
 
 class CPPMethod:
