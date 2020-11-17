@@ -1,5 +1,5 @@
 from extractdebug.converters.converter import Converter
-from extractdebug.extractors.extractor import Field, Accessibility, Method
+from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier
 
 
 class OriginalCPPConverter(Converter):
@@ -20,6 +20,23 @@ class OriginalCPPConverter(Converter):
             classes.append(CPPClass(cls.name, members))
 
         return classes[0]
+
+    @staticmethod
+    def generate_type_modifiers_str(modifiers):
+        result = ''
+        for i, modifier in enumerate(modifiers):
+            if modifier == TypeModifier.pointer:
+                result += '*'
+            elif modifier == TypeModifier.constant:
+                if i > 0:
+                    result += ' '
+                result += 'const'
+                if i != len(modifiers) - 1:
+                    result += ' '
+
+        if modifiers:
+            result = ' ' + result
+        return result + ' '
 
 
 class CPPParameter:
@@ -44,7 +61,8 @@ class CPPMethod:
         basic_output = f'{self.name}({params_string});'
 
         if self.type:
-            basic_output = f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}' + basic_output
+            modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
+            basic_output = f'{self.type.name.decode("utf-8")}{modifier_str}' + basic_output
 
         if self.static:
             basic_output = 'static ' + basic_output
@@ -61,10 +79,10 @@ class CPPField:
         self.const_value = const_value
 
     def __repr__(self):
-        basic_output = f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name}'
+        modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
+        basic_output = f'{self.type.name.decode("utf-8")}{modifier_str}{self.name}'
 
         if self.const_value:
-            basic_output = 'const ' + basic_output
             basic_output += f' = {self.const_value}'
 
         if self.static:

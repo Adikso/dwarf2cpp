@@ -1,7 +1,7 @@
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
-from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type
+from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier
 
 
 class Tag:
@@ -103,6 +103,7 @@ class DwarfExtractor(Extractor):
     @staticmethod
     def _resolve_type(die):
         resolved_type = Type()
+        modifiers = []
 
         if Attribute.TYPE not in die.attributes:
             return None
@@ -110,13 +111,17 @@ class DwarfExtractor(Extractor):
         entry = die.cu.get_DIE_from_refaddr(die.attributes[Attribute.TYPE].value)
         while Attribute.NAME not in entry.attributes:
             if entry.tag == Tag.POINTER_TYPE:
-                resolved_type.pointer = True
+                modifiers.insert(0, TypeModifier.pointer)
+
+            if entry.tag == Tag.CONST_TYPE:
+                modifiers.insert(0, TypeModifier.constant)
 
             if Attribute.TYPE not in entry.attributes:
                 return None
 
             entry = die.cu.get_DIE_from_refaddr(entry.attributes[Attribute.TYPE].value)
 
+        resolved_type.modifiers = modifiers
         resolved_type.name = entry.attributes[Attribute.NAME].value
         return resolved_type
 

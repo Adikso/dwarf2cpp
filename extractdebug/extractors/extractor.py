@@ -53,8 +53,12 @@ class Parameter:
 class Type:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
-        self.pointer = kwargs.get('pointer', None)
-        self.constant = kwargs.get('constant', None)
+        self.modifiers = kwargs.get('modifiers', None)
+
+
+class TypeModifier(Enum):
+    pointer = 0
+    constant = 1
 
 
 class Method:
