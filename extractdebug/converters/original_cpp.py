@@ -12,14 +12,29 @@ class OriginalCPPConverter(Converter):
             members = []
             for member in cls.members:
                 if isinstance(member, Field):
-                    members.append(CPPField(Accessibility(member.accessibility), member.type, member.name, member.static, member.const_value))
+                    members.append(CPPField(
+                        accessibility=Accessibility(member.accessibility),
+                        type=member.type,
+                        name=member.name,
+                        static=member.static,
+                        const_value=member.const_value)
+                    )
                 elif isinstance(member, Method):
                     parameters = [CPPParameter(x.name, x.type) for x in member.parameters if x.name != b'this']
-                    members.append(CPPMethod(Accessibility(member.accessibility), member.type, member.name, member.static, parameters))
+                    members.append(CPPMethod(
+                        accessibility=Accessibility(member.accessibility),
+                        type=member.type,
+                        name=member.name,
+                        static=member.static,
+                        parameters=parameters)
+                    )
 
             inheritance = None
             if cls.inheritance_class:
-                inheritance = CPPInheritance(cls.inheritance_class, Accessibility(cls.inheritance_accessibility))
+                inheritance = CPPInheritance(
+                    cls=cls.inheritance_class,
+                    accessibility=Accessibility(cls.inheritance_accessibility)
+                )
 
             classes.append(CPPClass(cls.name, members, inheritance))
 

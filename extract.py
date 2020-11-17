@@ -11,6 +11,7 @@ def extract(input, format):
     output = convert(result, format)
     for cls in output:
         print(cls)
+        print()
 
 
 if __name__ == '__main__':
