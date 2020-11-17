@@ -63,11 +63,12 @@ class CPPField:
     def __repr__(self):
         basic_output = f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name}'
 
+        if self.const_value:
+            basic_output = 'const ' + basic_output
+            basic_output += f' = {self.const_value}'
+
         if self.static:
             basic_output = 'static ' + basic_output
-
-        if self.const_value:
-            basic_output += f' = {self.const_value}'
 
         return basic_output + ';'
 
