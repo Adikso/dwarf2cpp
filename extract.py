@@ -9,7 +9,8 @@ from extractdebug.processor import process, convert
 def extract(input, format):
     result = process(input)
     output = convert(result, format)
-    print(output)
+    for cls in output:
+        print(cls)
 
 
 if __name__ == '__main__':

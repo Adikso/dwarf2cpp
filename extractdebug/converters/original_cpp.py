@@ -17,9 +17,13 @@ class OriginalCPPConverter(Converter):
                     parameters = [CPPParameter(x.name, x.type) for x in member.parameters if x.name != b'this']
                     members.append(CPPMethod(Accessibility(member.accessibility), member.type, member.name, member.static, parameters))
 
-            classes.append(CPPClass(cls.name, members))
+            inheritance = None
+            if cls.inheritance_class:
+                inheritance = CPPInheritance(cls.inheritance_class, Accessibility(cls.inheritance_accessibility))
 
-        return classes[0]
+            classes.append(CPPClass(cls.name, members, inheritance))
+
+        return classes
 
     @staticmethod
     def generate_type_modifiers_str(modifiers):
@@ -68,16 +72,16 @@ class CPPMethod:
 
     def __repr__(self):
         params_string = ", ".join([str(x) for x in self.parameters])
-        basic_output = f'{self.name}({params_string});'
+        output = f'{self.name}({params_string});'
 
         if self.type:
             modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
-            basic_output = f'{self.type.name.decode("utf-8")}{modifier_str}' + basic_output
+            output = f'{self.type.name.decode("utf-8")}{modifier_str}' + output
 
         if self.static:
-            basic_output = 'static ' + basic_output
+            output = 'static ' + output
 
-        return basic_output
+        return output
 
 
 class CPPField:
@@ -90,15 +94,15 @@ class CPPField:
 
     def __repr__(self):
         modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
-        basic_output = f'{self.type.name.decode("utf-8")}{modifier_str}{self.name}'
+        output = f'{self.type.name.decode("utf-8")}{modifier_str}{self.name}'
 
         if self.const_value:
-            basic_output += f' = {self.const_value}'
+            output += f' = {self.const_value}'
 
         if self.static:
-            basic_output = 'static ' + basic_output
+            output = 'static ' + output
 
-        return basic_output + ';'
+        return output + ';'
 
 
 class CPPBlock:
@@ -120,10 +124,25 @@ class CPPBlock:
         return '{\n' + '\n'.join(lines) + '\n}'
 
 
+class CPPInheritance:
+    def __init__(self, cls, accessibility):
+        self.cls = cls
+        self.accessibility = accessibility
+
+    def __repr__(self):
+        return f'{self.accessibility.name} {self.cls.name.decode("utf-8")}'
+
+
 class CPPClass:
-    def __init__(self, name, children):
+    def __init__(self, name, children, inheritance):
         self.name = name.decode("utf-8")
+        self.inheritance = inheritance
         self.children = CPPBlock(1, children)
 
     def __repr__(self):
-        return f"class {self.name} {self.children}"
+        output = f"class {self.name}"
+
+        if self.inheritance:
+            output += f' : {self.inheritance}'
+
+        return output + f' {self.children}'

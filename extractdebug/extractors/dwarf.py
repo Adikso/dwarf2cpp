@@ -14,6 +14,7 @@ class Tag:
     MEMBER = 'DW_TAG_member'
     SUB_PROGRAM = 'DW_TAG_subprogram'
     PARAMETER = 'DW_TAG_formal_parameter'
+    INHERITANCE = 'DW_TAG_inheritance'
 
 
 class Attribute:
@@ -59,6 +60,8 @@ class DwarfExtractor(Extractor):
     def _parse_class_type(self, die):
         class_name = die.attributes[Attribute.NAME].value
         members = []
+        inheritance_class = None
+        inheritance_accessibility = None
 
         for child in die.iter_children():
             attrs = child.attributes
@@ -84,8 +87,16 @@ class DwarfExtractor(Extractor):
                     const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
                 )
                 members.append(field)
+            elif child.tag == Tag.INHERITANCE:
+                inheritance_class = class_type
+                inheritance_accessibility = accessibility
 
-        return Class(name=class_name, members=members)
+        return Class(
+            name=class_name,
+            members=members,
+            inheritance_class=inheritance_class,
+            inheritance_accessibility=inheritance_accessibility
+        )
 
     def _parse_sub_program(self, die):
         attrs = die.attributes
