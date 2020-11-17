@@ -12,7 +12,7 @@ class OriginalCPPConverter(Converter):
             members = []
             for member in cls.members:
                 if isinstance(member, Field):
-                    members.append(CPPField(Accessibility(member.accessibility), member.type, member.name, member.static))
+                    members.append(CPPField(Accessibility(member.accessibility), member.type, member.name, member.static, member.const_value))
                 elif isinstance(member, Method):
                     parameters = [CPPParameter(x.name, x.type) for x in member.parameters if x.name != b'this']
                     members.append(CPPMethod(Accessibility(member.accessibility), member.type, member.name, member.static, parameters))
@@ -53,19 +53,23 @@ class CPPMethod:
 
 
 class CPPField:
-    def __init__(self, accessibility, type, name, static):
+    def __init__(self, accessibility, type, name, static, const_value):
         self.name = name.decode("utf-8")
         self.type = type
         self.accessibility = accessibility
         self.static = static
+        self.const_value = const_value
 
     def __repr__(self):
-        basic_output = f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name};'
+        basic_output = f'{self.type.name.decode("utf-8")} {("* " if self.type.pointer else "")}{self.name}'
 
         if self.static:
             basic_output = 'static ' + basic_output
 
-        return basic_output
+        if self.const_value:
+            basic_output += f' = {self.const_value}'
+
+        return basic_output + ';'
 
 
 class CPPBlock:

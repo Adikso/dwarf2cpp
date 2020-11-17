@@ -22,6 +22,7 @@ class Attribute:
     SPECIFICATION = 'DW_AT_specification'
     OBJECT_POINTER = 'DW_AT_object_pointer'
     DATA_MEMBER_LOCATION = 'DW_AT_data_member_location'
+    CONST_VALUE = 'DW_AT_const_value'
 
 
 class DwarfExtractor(Extractor):
@@ -78,7 +79,8 @@ class DwarfExtractor(Extractor):
                     name=attrs[Attribute.NAME].value,
                     type=class_type,
                     accessibility=accessibility,
-                    static=Attribute.DATA_MEMBER_LOCATION not in attrs
+                    static=Attribute.DATA_MEMBER_LOCATION not in attrs,
+                    const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
                 )
                 members.append(field)
 
