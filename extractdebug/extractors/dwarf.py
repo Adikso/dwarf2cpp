@@ -32,6 +32,7 @@ class Attribute:
 class DwarfExtractor(Extractor):
     def __init__(self):
         self._classes = []
+        self._unions = []
         self._types = {}
         self._subprograms = {}
 
@@ -39,7 +40,7 @@ class DwarfExtractor(Extractor):
         """Checks if file contains DWARF debugging data"""
         try:
             elf_file = ELFFile(file)
-            return elf_file.has_dwarf_info()
+            return elf_file.has_dwarf_info() and elf_file.get_dwarf_info().has_debug_info
         except ELFError:
             return False
 
@@ -50,7 +51,7 @@ class DwarfExtractor(Extractor):
         for cu in dwarf_info.iter_CUs():
             self._parse_compilation_unit(cu)
 
-        return ExtractorResult(file, self._classes)
+        return ExtractorResult(file, self._classes, self._unions)
 
     def _parse_compilation_unit(self, unit):
         top_die = unit.get_top_DIE()
@@ -58,6 +59,10 @@ class DwarfExtractor(Extractor):
             if child.tag == Tag.CLASS_TYPE:
                 self._classes.append(
                     self._parse_class_type(child)
+                )
+            if child.tag == Tag.UNION_TYPE:
+                self._unions.append(
+                    self._parse_union_type(child)
                 )
             elif child.tag == Tag.SUB_PROGRAM:
                 self._parse_sub_program(child)
@@ -83,6 +88,19 @@ class DwarfExtractor(Extractor):
             inheritance_accessibility=inheritance_accessibility
         )
 
+    def _parse_union_type(self, die):
+        class_name = die.attributes[Attribute.NAME].value
+        members = []
+
+        for child in die.iter_children():
+            members.append(self._parse_member(child))
+
+        return Union(
+            name=class_name,
+            fields=members,
+            accessibility=self._get_accessibility(die)
+        )
+
     def _parse_member(self, child):
         attrs = child.attributes
         accessibility = self._get_accessibility(child)
@@ -103,7 +121,7 @@ class DwarfExtractor(Extractor):
                     name=attrs[Attribute.NAME].value,
                     type=class_type,
                     accessibility=accessibility,
-                    static=Attribute.DATA_MEMBER_LOCATION not in attrs,
+                    static=Attribute.EXTERNAL in attrs,
                     const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
                 )
 
@@ -125,7 +143,7 @@ class DwarfExtractor(Extractor):
             member.static = Attribute.EXTERNAL in child.attributes
             members.append(member)
 
-        return Union(members, self._get_accessibility(die))
+        return Union(fields=members, accessibility=self._get_accessibility(die))
 
     def _parse_sub_program(self, die):
         if Attribute.SPECIFICATION not in die.attributes:

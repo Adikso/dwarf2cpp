@@ -7,46 +7,14 @@ class OriginalCPPConverter(Converter):
         return 'cpp'
 
     def convert(self, result):
-        classes = []
+        entries = []
+
+        for union in result.unions:
+            members = self._convert_members(union.fields)
+            entries.append(CPPUnion(union.name, members, Accessibility.private))
+
         for cls in result.classes:
-            members = []
-            for member in cls.members:
-                if isinstance(member, Field):
-                    members.append(CPPField(
-                        accessibility=Accessibility(member.accessibility),
-                        type=member.type,
-                        name=member.name,
-                        static=member.static,
-                        const_value=member.const_value)
-                    )
-                elif isinstance(member, Union):
-                    def parse_union_field(depth, m):
-                        fields = []
-                        for x in m.fields:
-                            if isinstance(x, Union):
-                                nested_union = parse_union_field(depth + 1, x)
-                                fields.append(CPPUnion(depth + 1, nested_union, Accessibility(m.accessibility)))
-                            else:
-                                fields.append(CPPField(
-                                    accessibility=Accessibility(m.accessibility),
-                                    type=x.type,
-                                    name=x.name,
-                                    static=x.static,
-                                    const_value=x.const_value
-                                ))
-                        return fields
-
-                    members.append(CPPUnion(2, parse_union_field(2, member), Accessibility(member.accessibility)))
-                elif isinstance(member, Method):
-                    parameters = [CPPParameter(x.name, x.type) for x in member.parameters if x.name != b'this']
-                    members.append(CPPMethod(
-                        accessibility=Accessibility(member.accessibility),
-                        type=member.type,
-                        name=member.name,
-                        static=member.static,
-                        parameters=parameters)
-                    )
-
+            members = self._convert_members(cls.members)
             inheritance = None
             if cls.inheritance_class:
                 inheritance = CPPInheritance(
@@ -54,9 +22,33 @@ class OriginalCPPConverter(Converter):
                     accessibility=Accessibility(cls.inheritance_accessibility)
                 )
 
-            classes.append(CPPClass(cls.name, members, inheritance))
+            entries.append(CPPClass(cls.name, members, inheritance))
 
-        return classes
+        return entries
+
+    def _convert_members(self, members):
+        converted_members = []
+        for member in members:
+            if isinstance(member, Field):
+                converted_members.append(CPPField(
+                    accessibility=Accessibility(member.accessibility),
+                    type=member.type,
+                    name=member.name,
+                    static=member.static,
+                    const_value=member.const_value)
+                )
+            elif isinstance(member, Union):
+                converted_members.append(CPPUnion(None, self._convert_members(member.fields), Accessibility(member.accessibility)))
+            elif isinstance(member, Method):
+                parameters = [CPPParameter(x.name, x.type) for x in member.parameters if x.name != b'this']
+                converted_members.append(CPPMethod(
+                    accessibility=Accessibility(member.accessibility),
+                    type=member.type,
+                    name=member.name,
+                    static=member.static,
+                    parameters=parameters)
+                )
+        return converted_members
 
     @staticmethod
     def generate_type_modifiers_str(modifiers):
@@ -139,37 +131,39 @@ class CPPField:
 
 
 class CPPBlock:
-    def __init__(self, level, children):
-        self.level = level
+    def __init__(self, children):
         self.children = children
-
-    def _show_accessibility(self):
-        return True
 
     def __repr__(self):
         lines = []
         last_accessibility = None
 
         for member in self.children:
-            if self._show_accessibility() and member.accessibility != last_accessibility:
-                lines.append(' ' * ((self.level - 1) * 4) + f'{member.accessibility.name}:')
+            start_with_private = not last_accessibility and member.accessibility == Accessibility.private
+
+            if member.accessibility != last_accessibility and not start_with_private:
+                lines.append(f'{member.accessibility.name}:')
                 last_accessibility = member.accessibility
 
-            lines.append(' ' * (self.level * 4) + str(member))
+            for line in str(member).split('\n'):
+                lines.append(' ' * 4 + line)
 
-        return '{\n' + '\n'.join(lines) + '\n' + ' ' * ((self.level - 1) * 4) + '}'
+        return '{\n' + '\n'.join(lines) + '\n' + '};'
 
 
 class CPPUnion(CPPBlock):
-    def __init__(self, level, children, accessibility):
-        super().__init__(level, children)
+    def __init__(self, name, children, accessibility):
+        super().__init__(children)
+        self.name = name
         self.accessibility = accessibility
 
-    def _show_accessibility(self):
-        return False
-
     def __repr__(self):
-        return 'union ' + super().__repr__()
+        output = 'union '
+
+        if self.name:
+            output += self.name.decode("utf-8") + ' '
+
+        return output + super().__repr__()
 
 
 class CPPInheritance:
@@ -178,14 +172,19 @@ class CPPInheritance:
         self.accessibility = accessibility
 
     def __repr__(self):
-        return f'{self.accessibility.name} {self.cls.name.decode("utf-8")}'
+        output = self.cls.name.decode("utf-8")
+
+        if self.accessibility != Accessibility.private:
+            output = f'{self.accessibility.name} ' + output
+
+        return output
 
 
 class CPPClass:
     def __init__(self, name, children, inheritance):
         self.name = name.decode("utf-8")
         self.inheritance = inheritance
-        self.children = CPPBlock(1, children)
+        self.children = CPPBlock(children)
 
     def __repr__(self):
         output = f"class {self.name}"

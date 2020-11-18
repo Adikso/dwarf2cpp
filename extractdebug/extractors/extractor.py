@@ -10,9 +10,10 @@ class Extractor:
 
 
 class ExtractorResult:
-    def __init__(self, source_file, classes):
+    def __init__(self, source_file, classes, unions):
         self.source_file = source_file
         self.classes = classes
+        self.unions = unions
 
     def __repr__(self):
         return f'ExtractorResult{self.classes}'
@@ -47,9 +48,10 @@ class Field:
 
 
 class Union:
-    def __init__(self, fields, accessibility):
-        self.fields = fields
-        self.accessibility = accessibility
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', None)
+        self.fields = kwargs.get('fields', [])
+        self.accessibility = kwargs.get('accessibility', Accessibility.private)
 
 
 class Parameter:
