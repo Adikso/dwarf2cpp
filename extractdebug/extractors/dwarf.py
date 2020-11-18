@@ -149,6 +149,10 @@ class DwarfExtractor(Extractor):
         if Attribute.SPECIFICATION not in die.attributes:
             return
 
+        specification = die.attributes[Attribute.SPECIFICATION].value
+        if specification not in self._subprograms:
+            self._parse_member(die.cu.get_DIE_from_refaddr(specification))
+
         existing_method = self._subprograms[die.attributes[Attribute.SPECIFICATION].value]
         for child in die.iter_children():
             if child.tag == Tag.PARAMETER:
