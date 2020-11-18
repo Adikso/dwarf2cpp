@@ -61,7 +61,7 @@ class Parameter:
 class Type:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
-        self.modifiers = kwargs.get('modifiers', None)
+        self.modifiers = kwargs.get('modifiers', [])
 
 
 class TypeModifier(Enum):

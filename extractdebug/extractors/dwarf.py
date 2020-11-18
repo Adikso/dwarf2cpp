@@ -5,7 +5,7 @@ from extractdebug.extractors.extractor import Extractor, Field, Class, Extractor
 
 
 class Tag:
-    CLASS_NAME = 'DW_TAG_class_type'
+    CLASS_TYPE = 'DW_TAG_class_type'
     BASE_TYPE = 'DW_TAG_base_type'
     CONST_TYPE = 'DW_TAG_const_type'
     POINTER_TYPE = 'DW_TAG_pointer_type'
@@ -36,6 +36,7 @@ class DwarfExtractor(Extractor):
         self._subprograms = {}
 
     def test(self, file):
+        """Checks if file contains DWARF debugging data"""
         try:
             elf_file = ELFFile(file)
             return elf_file.has_dwarf_info()
@@ -51,11 +52,13 @@ class DwarfExtractor(Extractor):
 
         return ExtractorResult(file, self._classes)
 
-    def _parse_compilation_unit(self, cu):
-        top_die = cu.get_top_DIE()
+    def _parse_compilation_unit(self, unit):
+        top_die = unit.get_top_DIE()
         for child in top_die.iter_children():
-            if child.tag == Tag.CLASS_NAME:
-                self._classes.append(self._parse_class_type(child))
+            if child.tag == Tag.CLASS_TYPE:
+                self._classes.append(
+                    self._parse_class_type(child)
+                )
             elif child.tag == Tag.SUB_PROGRAM:
                 self._parse_sub_program(child)
 
@@ -67,10 +70,8 @@ class DwarfExtractor(Extractor):
 
         for child in die.iter_children():
             if child.tag == Tag.INHERITANCE:
-                accessibility = self._get_accessibility(child)
-                class_type = self._resolve_type(child)
-                inheritance_class = class_type
-                inheritance_accessibility = accessibility
+                inheritance_accessibility = self._get_accessibility(child)
+                inheritance_class = self._resolve_type(child)
                 continue
 
             members.append(self._parse_member(child))
@@ -89,28 +90,26 @@ class DwarfExtractor(Extractor):
 
         # Tag specific attributes
         if child.tag == Tag.SUB_PROGRAM:
-            method = Method(
+            self._subprograms[child.offset] = Method(
                 name=attrs[Attribute.NAME].value,
                 type=class_type,
                 accessibility=accessibility,
                 static=Attribute.OBJECT_POINTER not in attrs
             )
-            self._subprograms[child.offset] = method
-            return method
+            return self._subprograms[child.offset]
         elif child.tag == Tag.MEMBER:
-            if not class_type:
-                type_die = child.cu.get_DIE_from_refaddr(child.attributes[Attribute.TYPE].value)
-                if type_die.tag == Tag.UNION_TYPE:
-                    return self._parse_union(child)
-            else:
-                field = Field(
+            if class_type:
+                return Field(
                     name=attrs[Attribute.NAME].value,
                     type=class_type,
                     accessibility=accessibility,
                     static=Attribute.DATA_MEMBER_LOCATION not in attrs,
                     const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
                 )
-                return field
+
+            type_die = child.cu.get_DIE_from_refaddr(child.attributes[Attribute.TYPE].value)
+            if type_die.tag == Tag.UNION_TYPE:
+                return self._parse_union(child)
 
         return None
 
@@ -129,24 +128,21 @@ class DwarfExtractor(Extractor):
         return Union(members, self._get_accessibility(die))
 
     def _parse_sub_program(self, die):
-        attrs = die.attributes
-        if Attribute.SPECIFICATION not in attrs:
+        if Attribute.SPECIFICATION not in die.attributes:
             return
 
-        existing_method = self._subprograms[attrs[Attribute.SPECIFICATION].value]
+        existing_method = self._subprograms[die.attributes[Attribute.SPECIFICATION].value]
         for child in die.iter_children():
-            attrs = child.attributes
             if child.tag == Tag.PARAMETER:
                 param_type = self._resolve_type(child)
                 existing_method.parameters.append(Parameter(
-                    name=attrs[Attribute.NAME].value,
+                    name=child.attributes[Attribute.NAME].value,
                     type=param_type
                 ))
 
     @staticmethod
     def _resolve_type(die):
-        resolved_type = Type()
-        modifiers = []
+        type = Type()
 
         if Attribute.TYPE not in die.attributes:
             return None
@@ -154,25 +150,24 @@ class DwarfExtractor(Extractor):
         entry = die.cu.get_DIE_from_refaddr(die.attributes[Attribute.TYPE].value)
         while Attribute.NAME not in entry.attributes:
             if entry.tag == Tag.POINTER_TYPE:
-                modifiers.insert(0, TypeModifier.pointer)
+                type.modifiers.insert(0, TypeModifier.pointer)
 
             if entry.tag == Tag.CONST_TYPE:
-                modifiers.insert(0, TypeModifier.constant)
+                type.modifiers.insert(0, TypeModifier.constant)
 
             if entry.tag == Tag.VOLATILE_TYPE:
-                modifiers.insert(0, TypeModifier.volatile)
+                type.modifiers.insert(0, TypeModifier.volatile)
 
             if entry.tag == Tag.REFERENCE_TYPE:
-                modifiers.insert(0, TypeModifier.reference)
+                type.modifiers.insert(0, TypeModifier.reference)
 
             if Attribute.TYPE not in entry.attributes:
                 return None
 
             entry = die.cu.get_DIE_from_refaddr(entry.attributes[Attribute.TYPE].value)
 
-        resolved_type.modifiers = modifiers
-        resolved_type.name = entry.attributes[Attribute.NAME].value
-        return resolved_type
+        type.name = entry.attributes[Attribute.NAME].value
+        return type
 
     @staticmethod
     def _get_accessibility(die):
