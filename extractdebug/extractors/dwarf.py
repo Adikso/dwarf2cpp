@@ -1,7 +1,7 @@
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
-from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier
+from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union
 
 
 class Tag:
@@ -15,6 +15,7 @@ class Tag:
     SUB_PROGRAM = 'DW_TAG_subprogram'
     PARAMETER = 'DW_TAG_formal_parameter'
     INHERITANCE = 'DW_TAG_inheritance'
+    UNION_TYPE = 'DW_TAG_union_type'
 
 
 class Attribute:
@@ -25,6 +26,7 @@ class Attribute:
     OBJECT_POINTER = 'DW_AT_object_pointer'
     DATA_MEMBER_LOCATION = 'DW_AT_data_member_location'
     CONST_VALUE = 'DW_AT_const_value'
+    EXTERNAL = 'DW_AT_external'
 
 
 class DwarfExtractor(Extractor):
@@ -64,32 +66,14 @@ class DwarfExtractor(Extractor):
         inheritance_accessibility = None
 
         for child in die.iter_children():
-            attrs = child.attributes
-            accessibility = self._get_accessibility(child)
-            class_type = self._resolve_type(child)
-
-            # Tag specific attributes
-            if child.tag == Tag.SUB_PROGRAM:
-                method = Method(
-                    name=attrs[Attribute.NAME].value,
-                    type=class_type,
-                    accessibility=accessibility,
-                    static=Attribute.OBJECT_POINTER not in attrs
-                )
-                members.append(method)
-                self._subprograms[child.offset] = method
-            elif child.tag == Tag.MEMBER:
-                field = Field(
-                    name=attrs[Attribute.NAME].value,
-                    type=class_type,
-                    accessibility=accessibility,
-                    static=Attribute.DATA_MEMBER_LOCATION not in attrs,
-                    const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
-                )
-                members.append(field)
-            elif child.tag == Tag.INHERITANCE:
+            if child.tag == Tag.INHERITANCE:
+                accessibility = self._get_accessibility(child)
+                class_type = self._resolve_type(child)
                 inheritance_class = class_type
                 inheritance_accessibility = accessibility
+                continue
+
+            members.append(self._parse_member(child))
 
         return Class(
             name=class_name,
@@ -97,6 +81,52 @@ class DwarfExtractor(Extractor):
             inheritance_class=inheritance_class,
             inheritance_accessibility=inheritance_accessibility
         )
+
+    def _parse_member(self, child):
+        attrs = child.attributes
+        accessibility = self._get_accessibility(child)
+        class_type = self._resolve_type(child)
+
+        # Tag specific attributes
+        if child.tag == Tag.SUB_PROGRAM:
+            method = Method(
+                name=attrs[Attribute.NAME].value,
+                type=class_type,
+                accessibility=accessibility,
+                static=Attribute.OBJECT_POINTER not in attrs
+            )
+            self._subprograms[child.offset] = method
+            return method
+        elif child.tag == Tag.MEMBER:
+            if not class_type:
+                type_die = child.cu.get_DIE_from_refaddr(child.attributes[Attribute.TYPE].value)
+                if type_die.tag == Tag.UNION_TYPE:
+                    return self._parse_union(child)
+            else:
+                field = Field(
+                    name=attrs[Attribute.NAME].value,
+                    type=class_type,
+                    accessibility=accessibility,
+                    static=Attribute.DATA_MEMBER_LOCATION not in attrs,
+                    const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
+                )
+                return field
+
+        return None
+
+    def _parse_union(self, die):
+        type_die = die.cu.get_DIE_from_refaddr(die.attributes[Attribute.TYPE].value)
+        members = []
+
+        for child in type_die.iter_children():
+            member = self._parse_member(child)
+            if not member:
+                continue
+
+            member.static = Attribute.EXTERNAL in child.attributes
+            members.append(member)
+
+        return Union(members, self._get_accessibility(die))
 
     def _parse_sub_program(self, die):
         attrs = die.attributes

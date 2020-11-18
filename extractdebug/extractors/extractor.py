@@ -46,6 +46,12 @@ class Field:
         return f'Field{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
 
 
+class Union:
+    def __init__(self, fields, accessibility):
+        self.fields = fields
+        self.accessibility = accessibility
+
+
 class Parameter:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
