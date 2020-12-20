@@ -9,6 +9,10 @@ class OriginalCPPConverter(Converter):
     def convert(self, result):
         entries = []
 
+        for struct in result.structs:
+            members = self._convert_members(struct.members)
+            entries.append(CPPStruct(struct.name, members))
+
         for union in result.unions:
             members = self._convert_members(union.fields)
             entries.append(CPPUnion(union.name, members, Accessibility.private))
@@ -191,5 +195,16 @@ class CPPClass:
 
         if self.inheritance:
             output += f' : {self.inheritance}'
+
+        return output + f' {self.children}'
+
+
+class CPPStruct:
+    def __init__(self, name, children):
+        self.name = name.decode("utf-8")
+        self.children = CPPBlock(children)
+
+    def __repr__(self):
+        output = f"struct {self.name}"
 
         return output + f' {self.children}'

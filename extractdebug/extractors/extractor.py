@@ -10,10 +10,11 @@ class Extractor:
 
 
 class ExtractorResult:
-    def __init__(self, source_file, classes, unions):
+    def __init__(self, source_file, classes, unions, structs):
         self.source_file = source_file
         self.classes = classes
         self.unions = unions
+        self.structs = structs
 
     def __repr__(self):
         return f'ExtractorResult{self.classes}'
@@ -28,6 +29,15 @@ class Class:
 
     def __repr__(self):
         return f'Class{{name={self.name}, fields={self.members}'
+
+
+class Struct:
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', None)
+        self.members = kwargs.get('members', None)
+
+    def __repr__(self):
+        return f'Struct{{name={self.name}, fields={self.members}'
 
 
 class Accessibility(Enum):

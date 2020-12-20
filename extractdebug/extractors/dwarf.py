@@ -1,7 +1,7 @@
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
-from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union
+from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union, Struct
 
 
 class Tag:
@@ -16,6 +16,7 @@ class Tag:
     PARAMETER = 'DW_TAG_formal_parameter'
     INHERITANCE = 'DW_TAG_inheritance'
     UNION_TYPE = 'DW_TAG_union_type'
+    STRUCTURE_TYPE = 'DW_TAG_structure_type'
 
 
 class Attribute:
@@ -32,6 +33,7 @@ class Attribute:
 class DwarfExtractor(Extractor):
     def __init__(self):
         self._classes = []
+        self._structs = []
         self._unions = []
         self._types = {}
         self._subprograms = {}
@@ -51,19 +53,20 @@ class DwarfExtractor(Extractor):
         for cu in dwarf_info.iter_CUs():
             self._parse_compilation_unit(cu)
 
-        return ExtractorResult(file, self._classes, self._unions)
+        return ExtractorResult(file, self._classes, self._unions, self._structs)
 
     def _parse_compilation_unit(self, unit):
         top_die = unit.get_top_DIE()
         for child in top_die.iter_children():
             if child.tag == Tag.CLASS_TYPE:
-                self._classes.append(
-                    self._parse_class_type(child)
-                )
-            if child.tag == Tag.UNION_TYPE:
-                self._unions.append(
-                    self._parse_union_type(child)
-                )
+                self._classes.append(self._parse_class_type(child))
+            elif child.tag == Tag.UNION_TYPE:
+                self._unions.append(self._parse_union_type(child))
+            elif child.tag == Tag.STRUCTURE_TYPE:
+                if Attribute.NAME not in child.attributes:
+                    continue
+
+                self._structs.append(self._parse_struct_type(child))
             elif child.tag == Tag.SUB_PROGRAM:
                 self._parse_sub_program(child)
 
@@ -86,6 +89,18 @@ class DwarfExtractor(Extractor):
             members=members,
             inheritance_class=inheritance_class,
             inheritance_accessibility=inheritance_accessibility
+        )
+
+    def _parse_struct_type(self, die):
+        class_name = die.attributes[Attribute.NAME].value
+        members = []
+
+        for child in die.iter_children():
+            members.append(self._parse_member(child))
+
+        return Struct(
+            name=class_name,
+            members=members
         )
 
     def _parse_union_type(self, die):
