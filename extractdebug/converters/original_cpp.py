@@ -121,7 +121,10 @@ class CPPMethod:
         self.accessibility = accessibility
 
     def __repr__(self):
-        params_string = ", ".join([str(x) for x in self.parameters])
+        if self.name.startswith('~'):
+            params_string = ''
+        else:
+            params_string = ", ".join([str(x) for x in self.parameters])
         output = f'{self.name}({params_string});'
 
         if self.type:
