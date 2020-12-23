@@ -245,6 +245,12 @@ class DwarfExtractor(Extractor):
             entry = die.cu.get_DIE_from_refaddr(entry.attributes[Attribute.TYPE].value)
 
         type.name = entry.attributes[Attribute.NAME].value
+
+        entry = entry._parent
+        while entry and entry.tag == Tag.NAMESPACE:
+            type.namespaces.appendleft(entry.attributes[Attribute.NAME].value)
+            entry = entry._parent
+
         return type
 
     @staticmethod

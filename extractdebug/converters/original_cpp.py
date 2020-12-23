@@ -95,6 +95,12 @@ class OriginalCPPConverter(Converter):
             result = ' ' + result
         return result + ' '
 
+    @staticmethod
+    def generate_type_string(type):
+        modifier_str = OriginalCPPConverter.generate_type_modifiers_str(type.modifiers)
+        name_parts = [x.decode('utf-8') for x in type.namespaces] + [f'{type.name.decode("utf-8")}{modifier_str}']
+        return '::'.join(name_parts)
+
 
 class CPPParameter:
     def __init__(self, name, type):
@@ -102,8 +108,8 @@ class CPPParameter:
         self.type = type
 
     def __repr__(self):
-        modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
-        return f'{self.type.name.decode("utf-8")}{modifier_str}{self.name}'
+        type_str = OriginalCPPConverter.generate_type_string(self.type)
+        return f'{type_str}{self.name}'
 
 
 class CPPMethod:
@@ -119,8 +125,8 @@ class CPPMethod:
         output = f'{self.name}({params_string});'
 
         if self.type:
-            modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
-            output = f'{self.type.name.decode("utf-8")}{modifier_str}' + output
+            type_str = OriginalCPPConverter.generate_type_string(self.type)
+            output = f'{type_str}' + output
 
         if self.static:
             output = 'static ' + output
@@ -137,8 +143,8 @@ class CPPField:
         self.const_value = const_value
 
     def __repr__(self):
-        modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
-        output = f'{self.type.name.decode("utf-8")}{modifier_str}{self.name}'
+        type_str = OriginalCPPConverter.generate_type_string(self.type)
+        output = f'{type_str}{self.name}'
 
         if self.const_value:
             output += f' = {self.const_value}'
@@ -248,7 +254,7 @@ class CPPTypeDef:
         if not self.type:
             self.type = Type(name=b'<<unknown>>')
 
-        modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
-        output = f'{self.type.name.decode("utf-8")}{modifier_str}{self.name}'
+        type_str = OriginalCPPConverter.generate_type_string(self.type)
+        output = f'{type_str}{self.name}'
 
         return f'typedef {output};'

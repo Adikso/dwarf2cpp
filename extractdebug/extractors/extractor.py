@@ -1,3 +1,4 @@
+from collections import deque
 from enum import Enum
 
 
@@ -25,6 +26,7 @@ class Class:
         self.inheritance_class = kwargs.get('inheritance_class', None)
         self.inheritance_accessibility = kwargs.get('inheritance_accessibility', None)
         self.decl_file = kwargs.get('decl_file', None)
+        self.parent = kwargs.get('parent', None)
 
     def __repr__(self):
         return f'Class{{name={self.name}, fields={self.members}'
@@ -35,6 +37,7 @@ class Struct:
         self.name = kwargs.get('name', None)
         self.members = kwargs.get('members', None)
         self.decl_file = kwargs.get('decl_file', None)
+        self.parent = kwargs.get('parent', None)
 
     def __repr__(self):
         return f'Struct{{name={self.name}, fields={self.members}'
@@ -53,6 +56,7 @@ class Field:
         self.accessibility = kwargs.get('accessibility', Accessibility.private)
         self.static = kwargs.get('static', False)
         self.const_value = kwargs.get('const_value', None)
+        self.parent = kwargs.get('parent', None)
 
     def __repr__(self):
         return f'Field{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
@@ -64,6 +68,7 @@ class Union:
         self.fields = kwargs.get('fields', [])
         self.accessibility = kwargs.get('accessibility', Accessibility.private)
         self.decl_file = kwargs.get('decl_file', None)
+        self.parent = kwargs.get('parent', None)
 
 
 class Parameter:
@@ -75,6 +80,7 @@ class Parameter:
 class Type:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
+        self.namespaces = kwargs.get('namespaces', deque())
         self.modifiers = kwargs.get('modifiers', [])
 
 
@@ -92,6 +98,7 @@ class Method:
         self.accessibility = kwargs.get('accessibility', Accessibility.private)
         self.static = kwargs.get('static', False)
         self.parameters = kwargs.get('parameters', [])
+        self.parent = kwargs.get('parent', None)
 
     def __repr__(self):
         return f'Method{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
@@ -102,6 +109,7 @@ class Namespace:
         self.name = kwargs.get('name', None)
         self.elements = kwargs.get('elements', [])
         self.decl_file = kwargs.get('decl_file', None)
+        self.parent = kwargs.get('parent', None)
 
 
 class TypeDef:
@@ -109,3 +117,4 @@ class TypeDef:
         self.name = kwargs.get('name', None)
         self.type = kwargs.get('type', None)
         self.decl_file = kwargs.get('decl_file', None)
+        self.parent = kwargs.get('parent', None)
