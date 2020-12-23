@@ -1,7 +1,9 @@
+from collections import defaultdict
+
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
-from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union, Struct
+from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union, Struct, Namespace, TypeDef
 
 
 class Tag:
@@ -17,6 +19,8 @@ class Tag:
     INHERITANCE = 'DW_TAG_inheritance'
     UNION_TYPE = 'DW_TAG_union_type'
     STRUCTURE_TYPE = 'DW_TAG_structure_type'
+    NAMESPACE = 'DW_TAG_namespace'
+    TYPEDEF = 'DW_TAG_typedef'
 
 
 class Attribute:
@@ -28,13 +32,11 @@ class Attribute:
     DATA_MEMBER_LOCATION = 'DW_AT_data_member_location'
     CONST_VALUE = 'DW_AT_const_value'
     EXTERNAL = 'DW_AT_external'
+    DECL_FILE = 'DW_AT_decl_file'
 
 
 class DwarfExtractor(Extractor):
     def __init__(self):
-        self._classes = []
-        self._structs = []
-        self._unions = []
         self._types = {}
         self._subprograms = {}
 
@@ -50,25 +52,52 @@ class DwarfExtractor(Extractor):
         elf_file = ELFFile(file)
         dwarf_info = elf_file.get_dwarf_info()
 
+        elements = []
         for cu in dwarf_info.iter_CUs():
-            self._parse_compilation_unit(cu)
+            elements += self._parse_compilation_unit(cu)
 
-        return ExtractorResult(file, self._classes, self._unions, self._structs)
+        return ExtractorResult(file, elements)
 
-    def _parse_compilation_unit(self, unit):
-        top_die = unit.get_top_DIE()
-        for child in top_die.iter_children():
+    def _parse_children(self, die):
+        elements = []
+
+        for child in die.iter_children():
             if child.tag == Tag.CLASS_TYPE:
-                self._classes.append(self._parse_class_type(child))
+                elements.append(self._parse_class_type(child))
             elif child.tag == Tag.UNION_TYPE:
-                self._unions.append(self._parse_union_type(child))
+                elements.append(self._parse_union_type(child))
             elif child.tag == Tag.STRUCTURE_TYPE:
                 if Attribute.NAME not in child.attributes:
                     continue
 
-                self._structs.append(self._parse_struct_type(child))
+                elements.append(self._parse_struct_type(child))
             elif child.tag == Tag.SUB_PROGRAM:
                 self._parse_sub_program(child)
+            elif child.tag == Tag.NAMESPACE:
+                elements.append(self._parse_namespace(child))
+            elif child.tag == Tag.TYPEDEF:
+                elements.append(self._parse_typedef(child))
+
+        return elements
+
+    def _parse_compilation_unit(self, unit):
+        top_die = unit.get_top_DIE()
+        return self._parse_children(top_die)
+
+    def _parse_namespace(self, die):
+        elements = self._parse_children(die)
+        namespace = Namespace(
+            name=die.attributes[Attribute.NAME].value,
+            elements=elements
+        )
+
+        return namespace
+
+    def _parse_typedef(self, die):
+        return TypeDef(
+            name=die.attributes[Attribute.NAME].value,
+            type=self._resolve_type(die)
+        )
 
     def _parse_class_type(self, die):
         class_name = die.attributes[Attribute.NAME].value

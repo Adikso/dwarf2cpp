@@ -1,5 +1,5 @@
 from extractdebug.converters.converter import Converter
-from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union
+from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
 
 class OriginalCPPConverter(Converter):
@@ -7,28 +7,39 @@ class OriginalCPPConverter(Converter):
         return 'cpp'
 
     def convert(self, result):
+        return self._convert_elements(result.elements)
+
+    def _convert_elements(self, elements):
         entries = []
 
-        for struct in result.structs:
-            members = self._convert_members(struct.members)
-            entries.append(CPPStruct(struct.name, members))
+        for element in elements:
+            if isinstance(element, Namespace):
+                entries.append(CPPNamespace(element.name, self._convert_elements(element.elements)))
 
-        for union in result.unions:
-            members = self._convert_members(union.fields)
-            entries.append(CPPUnion(union.name, members, Accessibility.private))
+            if isinstance(element, Struct):
+                entries.append(CPPStruct(element.name, self._convert_members(element.members)))
 
-        for cls in result.classes:
-            members = self._convert_members(cls.members)
-            inheritance = None
-            if cls.inheritance_class:
-                inheritance = CPPInheritance(
-                    cls=cls.inheritance_class,
-                    accessibility=Accessibility(cls.inheritance_accessibility)
-                )
+            if isinstance(element, Union):
+                entries.append(CPPUnion(element.name, self._convert_members(element.fields), Accessibility.private))
 
-            entries.append(CPPClass(cls.name, members, inheritance))
+            if isinstance(element, Class):
+                entries.append(self._convert_class(element))
+
+            if isinstance(element, TypeDef):
+                entries.append(CPPTypeDef(element.name, element.type))
 
         return entries
+
+    def _convert_class(self, cls):
+        members = self._convert_members(cls.members)
+        inheritance = None
+        if cls.inheritance_class:
+            inheritance = CPPInheritance(
+                cls=cls.inheritance_class,
+                accessibility=Accessibility(cls.inheritance_accessibility)
+            )
+
+        return CPPClass(cls.name, members, inheritance)
 
     def _convert_members(self, members):
         converted_members = []
@@ -135,19 +146,21 @@ class CPPField:
 
 
 class CPPBlock:
-    def __init__(self, children):
+    def __init__(self, children, accessibility=True):
         self.children = children
+        self.accessibility = accessibility
 
     def __repr__(self):
         lines = []
         last_accessibility = None
 
         for member in self.children:
-            start_with_private = not last_accessibility and member.accessibility == Accessibility.private
+            if self.accessibility:
+                start_with_private = not last_accessibility and member.accessibility == Accessibility.private
 
-            if member.accessibility != last_accessibility and not start_with_private:
-                lines.append(f'{member.accessibility.name}:')
-                last_accessibility = member.accessibility
+                if member.accessibility != last_accessibility and not start_with_private:
+                    lines.append(f'{member.accessibility.name}:')
+                    last_accessibility = member.accessibility
 
             for line in str(member).split('\n'):
                 lines.append(' ' * 4 + line)
@@ -208,3 +221,30 @@ class CPPStruct:
         output = f"struct {self.name}"
 
         return output + f' {self.children}'
+
+
+class CPPNamespace:
+    def __init__(self, name, sub_elements):
+        self.name = name.decode("utf-8")
+        self.sub_elements = CPPBlock(sub_elements, accessibility=False)
+
+    def __repr__(self):
+        output = f'namespace {self.name} '
+        output += str(self.sub_elements)
+
+        return output
+
+
+class CPPTypeDef:
+    def __init__(self, name, type):
+        self.name = name.decode("utf-8")
+        self.type = type
+
+    def __repr__(self):
+        if not self.type:
+            self.type = Type(name=b'<<unknown>>')
+
+        modifier_str = OriginalCPPConverter.generate_type_modifiers_str(self.type.modifiers)
+        output = f'{self.type.name.decode("utf-8")}{modifier_str}{self.name}'
+
+        return f'typedef {output};'
