@@ -7,12 +7,16 @@ class OriginalCPPConverter(Converter):
         return 'cpp'
 
     def convert(self, result):
-        return self._convert_elements(result.elements)
+        decl_file = result.elements[-1].decl_file
+        return self._convert_elements(result.elements, decl_file=decl_file)
 
-    def _convert_elements(self, elements):
+    def _convert_elements(self, elements, decl_file=None):
         entries = []
 
         for element in elements:
+            if decl_file and element.decl_file != decl_file:
+                continue
+
             if isinstance(element, Namespace):
                 entries.append(CPPNamespace(element.name, self._convert_elements(element.elements)))
 

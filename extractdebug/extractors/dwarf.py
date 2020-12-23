@@ -33,6 +33,7 @@ class Attribute:
     CONST_VALUE = 'DW_AT_const_value'
     EXTERNAL = 'DW_AT_external'
     DECL_FILE = 'DW_AT_decl_file'
+    LINKAGE_NAME = 'DW_AT_linkage_name'
 
 
 class DwarfExtractor(Extractor):
@@ -88,7 +89,8 @@ class DwarfExtractor(Extractor):
         elements = self._parse_children(die)
         namespace = Namespace(
             name=die.attributes[Attribute.NAME].value,
-            elements=elements
+            elements=elements,
+            decl_file=die.attributes[Attribute.DECL_FILE].value
         )
 
         return namespace
@@ -96,7 +98,8 @@ class DwarfExtractor(Extractor):
     def _parse_typedef(self, die):
         return TypeDef(
             name=die.attributes[Attribute.NAME].value,
-            type=self._resolve_type(die)
+            type=self._resolve_type(die),
+            decl_file=die.attributes[Attribute.DECL_FILE].value
         )
 
     def _parse_class_type(self, die):
@@ -117,7 +120,8 @@ class DwarfExtractor(Extractor):
             name=class_name,
             members=members,
             inheritance_class=inheritance_class,
-            inheritance_accessibility=inheritance_accessibility
+            inheritance_accessibility=inheritance_accessibility,
+            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
         )
 
     def _parse_struct_type(self, die):
@@ -129,7 +133,8 @@ class DwarfExtractor(Extractor):
 
         return Struct(
             name=class_name,
-            members=members
+            members=members,
+            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
         )
 
     def _parse_union_type(self, die):
@@ -142,7 +147,8 @@ class DwarfExtractor(Extractor):
         return Union(
             name=class_name,
             fields=members,
-            accessibility=self._get_accessibility(die)
+            accessibility=self._get_accessibility(die),
+            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
         )
 
     def _parse_member(self, child):
@@ -187,7 +193,10 @@ class DwarfExtractor(Extractor):
             member.static = Attribute.EXTERNAL in child.attributes
             members.append(member)
 
-        return Union(fields=members, accessibility=self._get_accessibility(die))
+        return Union(
+            fields=members,
+            accessibility=self._get_accessibility(die)
+        )
 
     def _parse_sub_program(self, die):
         if Attribute.SPECIFICATION not in die.attributes:
@@ -228,6 +237,9 @@ class DwarfExtractor(Extractor):
                 type.modifiers.insert(0, TypeModifier.reference)
 
             if Attribute.TYPE not in entry.attributes:
+                if Attribute.LINKAGE_NAME in entry.attributes:
+                    type.name = entry.attributes[Attribute.LINKAGE_NAME].value
+                    return type
                 return None
 
             entry = die.cu.get_DIE_from_refaddr(entry.attributes[Attribute.TYPE].value)

@@ -24,6 +24,7 @@ class Class:
         self.members = kwargs.get('members', None)
         self.inheritance_class = kwargs.get('inheritance_class', None)
         self.inheritance_accessibility = kwargs.get('inheritance_accessibility', None)
+        self.decl_file = kwargs.get('decl_file', None)
 
     def __repr__(self):
         return f'Class{{name={self.name}, fields={self.members}'
@@ -33,6 +34,7 @@ class Struct:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
         self.members = kwargs.get('members', None)
+        self.decl_file = kwargs.get('decl_file', None)
 
     def __repr__(self):
         return f'Struct{{name={self.name}, fields={self.members}'
@@ -61,6 +63,7 @@ class Union:
         self.name = kwargs.get('name', None)
         self.fields = kwargs.get('fields', [])
         self.accessibility = kwargs.get('accessibility', Accessibility.private)
+        self.decl_file = kwargs.get('decl_file', None)
 
 
 class Parameter:
@@ -98,9 +101,11 @@ class Namespace:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
         self.elements = kwargs.get('elements', [])
+        self.decl_file = kwargs.get('decl_file', None)
 
 
 class TypeDef:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
         self.type = kwargs.get('type', None)
+        self.decl_file = kwargs.get('decl_file', None)
