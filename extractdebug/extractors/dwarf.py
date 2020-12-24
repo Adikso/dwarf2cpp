@@ -1,9 +1,10 @@
-from collections import defaultdict
-
 from elftools.common.exceptions import ELFError
+from elftools.common.utils import struct_parse
+from elftools.dwarf import structs
 from elftools.elf.elffile import ELFFile
 
-from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union, Struct, Namespace, TypeDef
+from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union, Struct, Namespace, TypeDef, \
+    File
 
 
 class Tag:
@@ -54,10 +55,12 @@ class DwarfExtractor(Extractor):
         dwarf_info = elf_file.get_dwarf_info()
 
         elements = []
+        files = {}
         for cu in dwarf_info.iter_CUs():
+            files |= self.parse_files_info(dwarf_info, cu.structs)
             elements += self._parse_compilation_unit(cu)
 
-        return ExtractorResult(file, elements)
+        return ExtractorResult(file, files, elements)
 
     def _parse_children(self, die):
         elements = []
@@ -214,6 +217,15 @@ class DwarfExtractor(Extractor):
                     name=child.attributes[Attribute.NAME].value,
                     type=param_type
                 ))
+
+    def parse_files_info(self, dwarf_info, structs):
+        files = {}
+
+        lineprog_header = struct_parse(structs.Dwarf_lineprog_header, dwarf_info.debug_line_sec.stream, 0)
+        for i, entry in enumerate(lineprog_header.file_entry):
+            files[i + 1] = File(id=i + 1, name=entry.name, directory=lineprog_header.include_directory[entry.dir_index - 1])
+
+        return files
 
     @staticmethod
     def _resolve_type(die):

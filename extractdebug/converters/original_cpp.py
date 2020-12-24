@@ -1,3 +1,5 @@
+import os
+
 from extractdebug.converters.converter import Converter
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
@@ -7,14 +9,32 @@ class OriginalCPPConverter(Converter):
         return 'cpp'
 
     def convert(self, result):
-        decl_file = result.elements[-1].decl_file
-        return self._convert_elements(result.elements, decl_file=decl_file)
+        project_files = self.get_project_files(result.files)
+        return self._convert_elements(result.elements, decl_files=project_files)
 
-    def _convert_elements(self, elements, decl_file=None):
+    def get_project_files(self, files):
+        main_file = files[1]
+        possibles = set()
+        base_path = main_file.directory
+        for file in files.values():
+            path = os.path.commonprefix([base_path, file.directory])
+            if path != b'/':
+                possibles.add(path)
+
+        base_path = min(possibles, key=len)
+
+        project_files = []
+        for id, file in files.items():
+            if file.name != b'<built-in>' and file.directory.startswith(base_path):
+                project_files.append(id)
+
+        return project_files
+
+    def _convert_elements(self, elements, decl_files=None):
         entries = []
 
         for element in elements:
-            if decl_file and element.decl_file != decl_file:
+            if decl_files and element.decl_file not in decl_files:
                 continue
 
             if isinstance(element, Namespace):

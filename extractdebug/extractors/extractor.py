@@ -11,8 +11,9 @@ class Extractor:
 
 
 class ExtractorResult:
-    def __init__(self, source_file, elements):
+    def __init__(self, source_file, files, elements):
         self.source_file = source_file
+        self.files = files
         self.elements = elements
 
     def __repr__(self):
@@ -118,3 +119,13 @@ class TypeDef:
         self.type = kwargs.get('type', None)
         self.decl_file = kwargs.get('decl_file', None)
         self.parent = kwargs.get('parent', None)
+
+
+class File:
+    def __init__(self, **kwargs):
+        self.id = kwargs.get('id', 0)
+        self.name = kwargs.get('name', None)
+        self.directory = kwargs.get('directory', None)
+
+    def __repr__(self):
+        return f'File{{id={self.id}, name={self.name}, directory={self.directory}'
