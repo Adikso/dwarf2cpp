@@ -9,9 +9,12 @@ from extractdebug.processor import process, convert
 def extract(input, format):
     result = process(input)
     output = convert(result, format)
-    for cls in output:
-        print(cls)
-        print()
+
+    for file in output:
+        print(f"// Source file {file.relative_path}")
+        for entry in file.entries:
+            print(entry)
+            print()
 
 
 if __name__ == '__main__':

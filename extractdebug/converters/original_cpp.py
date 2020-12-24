@@ -1,6 +1,7 @@
 import os
+from collections import defaultdict
 
-from extractdebug.converters.converter import Converter
+from extractdebug.converters.converter import Converter, ConverterResultFile
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
 
@@ -9,8 +10,23 @@ class OriginalCPPConverter(Converter):
         return 'cpp'
 
     def convert(self, result):
-        project_files = self.get_project_files(result.files)
-        return self._convert_elements(result.elements, decl_files=project_files)
+        base_path, project_files = self.get_project_files(result.files)
+        files_contents = self._convert_elements(
+            result.elements,
+            decl_files=[x.id for x in project_files.values()]
+        )
+
+        converted_files = []
+        for id, entries in files_contents.items():
+            project_file = project_files[id]
+            converted_files.append(ConverterResultFile(
+                name=project_file.name,
+                directory=project_file.directory,
+                entries=entries,
+                relative_path=project_file.directory[len(base_path):] + b'/' + project_file.name
+            ))
+
+        return converted_files
 
     def get_project_files(self, files):
         main_file = files[1]
@@ -22,35 +38,34 @@ class OriginalCPPConverter(Converter):
                 possibles.add(path)
 
         base_path = min(possibles, key=len)
-
-        project_files = []
+        project_files = {}
         for id, file in files.items():
             if file.name != b'<built-in>' and file.directory.startswith(base_path):
-                project_files.append(id)
+                project_files[id] = file
 
-        return project_files
+        return base_path, project_files
 
     def _convert_elements(self, elements, decl_files=None):
-        entries = []
+        entries = defaultdict(list)
 
         for element in elements:
             if decl_files and element.decl_file not in decl_files:
                 continue
 
             if isinstance(element, Namespace):
-                entries.append(CPPNamespace(element.name, self._convert_elements(element.elements)))
+                entries[element.decl_file].append(CPPNamespace(element.name, list(self._convert_elements(element.elements).values())[0]))
 
             if isinstance(element, Struct):
-                entries.append(CPPStruct(element.name, self._convert_members(element.members)))
+                entries[element.decl_file].append(CPPStruct(element.name, self._convert_members(element.members)))
 
             if isinstance(element, Union):
-                entries.append(CPPUnion(element.name, self._convert_members(element.fields), Accessibility.private))
+                entries[element.decl_file].append(CPPUnion(element.name, self._convert_members(element.fields), Accessibility.private))
 
             if isinstance(element, Class):
-                entries.append(self._convert_class(element))
+                entries[element.decl_file].append(self._convert_class(element))
 
             if isinstance(element, TypeDef):
-                entries.append(CPPTypeDef(element.name, element.type))
+                entries[element.decl_file].append(CPPTypeDef(element.name, element.type))
 
         return entries
 
