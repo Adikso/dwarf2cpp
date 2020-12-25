@@ -1,6 +1,5 @@
 from elftools.common.exceptions import ELFError
 from elftools.common.utils import struct_parse
-from elftools.dwarf import structs
 from elftools.elf.elffile import ELFFile
 
 from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union, Struct, Namespace, TypeDef, \
