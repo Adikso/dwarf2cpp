@@ -13,6 +13,7 @@ def get_project_files(files):
 
     base_path = main_file.directory
     for file in files.values():
+        file.directory = os.path.realpath(file.directory)
         path = os.path.commonprefix([base_path, file.directory])
         if path != b'/':
             potential_base_paths.add(path)
