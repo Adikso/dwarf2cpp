@@ -25,3 +25,11 @@ def get_project_files(files):
             project_files[file_id] = file
 
     return base_path, project_files
+
+
+def relative_path(base_path, file):
+    path = os.path.relpath(file.directory, base_path) + b'/' + file.name
+    if path.startswith(b'./'):
+        path = path[2:]
+
+    return path

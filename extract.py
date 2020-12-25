@@ -10,11 +10,7 @@ def extract(input, format):
     result = process(input)
     output = convert(result, format)
 
-    for file in output:
-        print(f"// Source file {file.relative_path[1:]}")
-        for entry in file.entries:
-            print(entry)
-            print()
+    print(output)
 
 
 if __name__ == '__main__':

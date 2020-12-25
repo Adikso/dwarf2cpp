@@ -171,6 +171,7 @@ class DwarfExtractor(Extractor):
             if class_type:
                 return Field(
                     name=attrs[Attribute.NAME].value,
+                    decl_file=attrs[Attribute.DECL_FILE].value if Attribute.DECL_FILE in attrs else None,
                     type=class_type,
                     accessibility=accessibility,
                     static=Attribute.EXTERNAL in attrs,
@@ -257,6 +258,9 @@ class DwarfExtractor(Extractor):
             entry = die.cu.get_DIE_from_refaddr(entry.attributes[Attribute.TYPE].value)
 
         type.name = entry.attributes[Attribute.NAME].value
+
+        if Attribute.DECL_FILE in entry.attributes:
+            type.decl_file = entry.attributes[Attribute.DECL_FILE].value
 
         entry = entry._parent
         while entry and entry.tag == Tag.NAMESPACE:

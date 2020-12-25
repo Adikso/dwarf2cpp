@@ -58,6 +58,7 @@ class Field:
         self.static = kwargs.get('static', False)
         self.const_value = kwargs.get('const_value', None)
         self.parent = kwargs.get('parent', None)
+        self.decl_file = kwargs.get('decl_file', None)
 
     def __repr__(self):
         return f'Field{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
@@ -83,6 +84,7 @@ class Type:
         self.name = kwargs.get('name', None)
         self.namespaces = kwargs.get('namespaces', deque())
         self.modifiers = kwargs.get('modifiers', [])
+        self.decl_file = kwargs.get('decl_file', None)
 
 
 class TypeModifier(Enum):

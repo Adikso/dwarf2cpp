@@ -1,11 +1,14 @@
 from collections import defaultdict
 
-from extractdebug.converters.common import get_project_files
-from extractdebug.converters.converter import Converter, ConverterResultFile
+from extractdebug.converters.common import get_project_files, relative_path
+from extractdebug.converters.converter import Converter
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
 
 class OriginalCPPConverter(Converter):
+    def __init__(self):
+        self.includes = defaultdict(set)
+
     def name(self):
         return 'cpp'
 
@@ -16,17 +19,29 @@ class OriginalCPPConverter(Converter):
             decl_files=[file.id for file in project_files.values()]
         )
 
-        converted_files = []
+        output = ''
         for file_id, entries in contents.items():
             project_file = project_files[file_id]
-            converted_files.append(ConverterResultFile(
-                name=project_file.name,
-                directory=project_file.directory,
-                entries=entries,
-                relative_path=project_file.directory[len(base_path):] + b'/' + project_file.name
-            ))
+            file_relative_path = relative_path(base_path, project_file).decode('utf-8')
+            output += f'// Source file: {file_relative_path}\n'
 
-        return converted_files
+            for included_file_id in self.includes[file_id]:
+                included_file = result.files[included_file_id]
+                if included_file.directory.startswith(base_path):
+                    included_relative_path = relative_path(project_file.directory, included_file)
+                    include_name = included_relative_path.decode('utf-8')
+                    output += f'#include "{include_name}";\n'
+                else:
+                    include_name = included_file.name.decode('utf-8')
+                    output += f'#include <{include_name}>;\n'
+
+            if self.includes[file_id]:
+                output += '\n'
+
+            for entry in entries:
+                output += f'{entry}\n\n'
+
+        return output
 
     def __convert_elements(self, elements, decl_files=None):
         entries = defaultdict(list)
@@ -102,6 +117,9 @@ class OriginalCPPConverter(Converter):
                     static=member.static,
                     const_value=member.const_value)
                 )
+
+                if member.type and member.type.decl_file and member.type.decl_file != member.decl_file:
+                    self.includes[member.decl_file].add(member.type.decl_file)
             elif isinstance(member, Union):
                 converted_members.append(
                     CPPUnion(
