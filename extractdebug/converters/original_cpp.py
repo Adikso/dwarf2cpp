@@ -63,7 +63,7 @@ class OriginalCPPConverter(Converter):
                 entries[element.decl_file].append(
                     CPPStruct(
                         name=element.name,
-                        children=self.__convert_members(element.members)
+                        children=self.__convert_members(element, element.members)
                     )
                 )
 
@@ -71,7 +71,7 @@ class OriginalCPPConverter(Converter):
                 entries[element.decl_file].append(
                     CPPUnion(
                         name=element.name,
-                        children=self.__convert_members(element.fields),
+                        children=self.__convert_members(element, element.fields),
                         accessibility=Accessibility.private
                     )
                 )
@@ -92,7 +92,7 @@ class OriginalCPPConverter(Converter):
         return entries
 
     def __convert_class(self, cls):
-        members = self.__convert_members(cls.members)
+        members = self.__convert_members(cls, cls.members)
         inheritance = None
         if cls.inheritance_class:
             inheritance = CPPInheritance(
@@ -106,7 +106,7 @@ class OriginalCPPConverter(Converter):
             inheritance=inheritance
         )
 
-    def __convert_members(self, members):
+    def __convert_members(self, parent, members):
         converted_members = []
         for member in members:
             if isinstance(member, Field):
@@ -123,7 +123,7 @@ class OriginalCPPConverter(Converter):
             elif isinstance(member, Union):
                 converted_members.append(
                     CPPUnion(
-                        children=self.__convert_members(member.fields),
+                        children=self.__convert_members(member, member.fields),
                         accessibility=Accessibility(member.accessibility)
                     )
                 )
@@ -132,9 +132,15 @@ class OriginalCPPConverter(Converter):
                     CPPParameter(name=param.name, type=param.type)
                     for param in member.parameters if param.name != b'this'
                 ]
+
+                # Handle detecting void type
+                return_type = member.type
+                if not return_type and member.name != parent.name and member.name != b'~' + parent.name:
+                    return_type = Type(name=b'void')
+
                 converted_members.append(CPPMethod(
                     accessibility=Accessibility(member.accessibility),
-                    type=member.type,
+                    type=return_type,
                     name=member.name,
                     static=member.static,
                     parameters=parameters)
