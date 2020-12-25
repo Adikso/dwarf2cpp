@@ -29,15 +29,20 @@ class OriginalCPPConverter(Converter):
         return converted_files
 
     def get_project_files(self, files):
-        main_file = files[1]
-        possibles = set()
+        for file in files.values():
+            if not file.directory.startswith(b'/usr/'):
+                main_file = file
+                break
+
+        potential_base_paths = set()
+
         base_path = main_file.directory
         for file in files.values():
             path = os.path.commonprefix([base_path, file.directory])
             if path != b'/':
-                possibles.add(path)
+                potential_base_paths.add(path)
 
-        base_path = min(possibles, key=len)
+        base_path = min(potential_base_paths, key=len)
         project_files = {}
         for id, file in files.items():
             if file.name != b'<built-in>' and file.directory.startswith(base_path):
@@ -53,7 +58,8 @@ class OriginalCPPConverter(Converter):
                 continue
 
             if isinstance(element, Namespace):
-                entries[element.decl_file].append(CPPNamespace(element.name, list(self._convert_elements(element.elements).values())[0]))
+                elements = list(self._convert_elements(element.elements).values())
+                entries[element.decl_file].append(CPPNamespace(element.name, elements[0] if elements else []))
 
             if isinstance(element, Struct):
                 entries[element.decl_file].append(CPPStruct(element.name, self._convert_members(element.members)))

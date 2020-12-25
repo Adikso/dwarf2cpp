@@ -213,10 +213,11 @@ class DwarfExtractor(Extractor):
         for child in die.iter_children():
             if child.tag == Tag.PARAMETER:
                 param_type = self._resolve_type(child)
-                existing_method.parameters.append(Parameter(
-                    name=child.attributes[Attribute.NAME].value,
-                    type=param_type
-                ))
+                if Attribute.NAME in child.attributes:  # Make sure
+                    existing_method.parameters.append(Parameter(
+                        name=child.attributes[Attribute.NAME].value,
+                        type=param_type
+                    ))
 
     def parse_files_info(self, dwarf_info, structs):
         files = {}

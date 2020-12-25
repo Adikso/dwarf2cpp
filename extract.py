@@ -11,7 +11,7 @@ def extract(input, format):
     output = convert(result, format)
 
     for file in output:
-        print(f"// Source file {file.relative_path}")
+        print(f"// Source file {file.relative_path[1:]}")
         for entry in file.entries:
             print(entry)
             print()
