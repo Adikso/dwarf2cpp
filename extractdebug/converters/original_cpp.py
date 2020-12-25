@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from extractdebug.converters.common import get_project_files, relative_path
+from extractdebug.converters.common import get_project_files, relative_path, type_mapping
 from extractdebug.converters.converter import Converter
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
@@ -26,14 +26,18 @@ class OriginalCPPConverter(Converter):
             output += f'// Source file: {file_relative_path}\n'
 
             for included_file_id in self.includes[file_id]:
+                if isinstance(included_file_id, str):
+                    output += f'#include <{included_file_id}>\n'
+                    continue
+
                 included_file = result.files[included_file_id]
                 if included_file.directory.startswith(base_path):
                     included_relative_path = relative_path(project_file.directory, included_file)
                     include_name = included_relative_path.decode('utf-8')
-                    output += f'#include "{include_name}";\n'
+                    output += f'#include "{include_name}"\n'
                 else:
                     include_name = included_file.name.decode('utf-8')
-                    output += f'#include <{include_name}>;\n'
+                    output += f'#include <{include_name}>\n'
 
             if self.includes[file_id]:
                 output += '\n'
@@ -118,7 +122,10 @@ class OriginalCPPConverter(Converter):
                     const_value=member.const_value)
                 )
 
-                if member.type and member.type.decl_file and member.type.decl_file != member.decl_file:
+                type_str = OriginalCPPConverter.type_string(member.type)[:-1]
+                if type_str in type_mapping:
+                    self.includes[member.decl_file].add(type_mapping[type_str])
+                elif member.type and member.type.decl_file and member.type.decl_file != member.decl_file:
                     self.includes[member.decl_file].add(member.type.decl_file)
             elif isinstance(member, Union):
                 converted_members.append(

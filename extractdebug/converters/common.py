@@ -1,5 +1,9 @@
 import os
 
+type_mapping = {
+    'std::string': 'string'
+}
+
 
 def get_project_files(files):
     main_file = None
