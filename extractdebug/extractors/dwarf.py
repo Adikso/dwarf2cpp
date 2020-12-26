@@ -34,6 +34,7 @@ class Attribute:
     EXTERNAL = 'DW_AT_external'
     DECL_FILE = 'DW_AT_decl_file'
     LINKAGE_NAME = 'DW_AT_linkage_name'
+    LOW_PC = 'DW_AT_low_pc'
 
 
 class DwarfExtractor(Extractor):
@@ -101,7 +102,7 @@ class DwarfExtractor(Extractor):
         return TypeDef(
             name=die.attributes[Attribute.NAME].value,
             type=self._resolve_type(die),
-            decl_file=die.attributes[Attribute.DECL_FILE].value
+            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
         )
 
     def _parse_class_type(self, die):
@@ -160,17 +161,27 @@ class DwarfExtractor(Extractor):
 
         # Tag specific attributes
         if child.tag == Tag.SUB_PROGRAM:
-            self._subprograms[child.offset] = Method(
+            method = Method(
                 name=attrs[Attribute.NAME].value,
                 type=class_type,
                 accessibility=accessibility,
                 static=Attribute.OBJECT_POINTER not in attrs
             )
+
+            for sub_child in child.iter_children():
+                if sub_child.tag == Tag.PARAMETER:
+                    param_type = self._resolve_type(sub_child)
+                    method.direct_parameters.append(Parameter(  # TODO
+                        name=sub_child.attributes[Attribute.NAME].value if Attribute.NAME in sub_child.attributes else None,
+                        type=param_type
+                    ))
+
+            self._subprograms[child.offset] = method
             return self._subprograms[child.offset]
         elif child.tag == Tag.MEMBER:
             if class_type:
                 return Field(
-                    name=attrs[Attribute.NAME].value,
+                    name=attrs[Attribute.NAME].value if Attribute.NAME in attrs else b'ERROR_UNKNOWN',
                     decl_file=attrs[Attribute.DECL_FILE].value if Attribute.DECL_FILE in attrs else None,
                     type=class_type,
                     accessibility=accessibility,
@@ -178,7 +189,11 @@ class DwarfExtractor(Extractor):
                     const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
                 )
 
-            type_die = child.cu.get_DIE_from_refaddr(child.attributes[Attribute.TYPE].value)
+            try:
+                type_die = child.cu.get_DIE_from_refaddr(child.attributes[Attribute.TYPE].value)
+            except:
+                return None
+
             if type_die.tag == Tag.UNION_TYPE:
                 return self._parse_union(child)
 
@@ -207,17 +222,24 @@ class DwarfExtractor(Extractor):
 
         specification = die.attributes[Attribute.SPECIFICATION].value
         if specification not in self._subprograms:
-            self._parse_member(die.cu.get_DIE_from_refaddr(specification))
+            try:
+                self._parse_member(die.cu.get_DIE_from_refaddr(specification))
+            except Exception as e:
+                # print(e)
+                return
 
         existing_method = self._subprograms[die.attributes[Attribute.SPECIFICATION].value]
         for child in die.iter_children():
             if child.tag == Tag.PARAMETER:
                 param_type = self._resolve_type(child)
-                if Attribute.NAME in child.attributes:  # Make sure
-                    existing_method.parameters.append(Parameter(
-                        name=child.attributes[Attribute.NAME].value,
-                        type=param_type
-                    ))
+                # if Attribute.NAME in child.attributes:  # Make sure
+                existing_method.parameters.append(Parameter(
+                    name=child.attributes[Attribute.NAME].value if Attribute.NAME in child.attributes else b'arg',
+                    type=param_type
+                ))
+
+        if Attribute.LOW_PC in die.attributes:
+            existing_method.low_pc = die.attributes[Attribute.LOW_PC].value
 
     def parse_files_info(self, dwarf_info, structs):
         files = {}
@@ -235,37 +257,41 @@ class DwarfExtractor(Extractor):
         if Attribute.TYPE not in die.attributes:
             return None
 
-        entry = die.cu.get_DIE_from_refaddr(die.attributes[Attribute.TYPE].value)
-        while Attribute.NAME not in entry.attributes:
-            if entry.tag == Tag.POINTER_TYPE:
-                type.modifiers.insert(0, TypeModifier.pointer)
+        try:
+            entry = die.cu.get_DIE_from_refaddr(die.attributes[Attribute.TYPE].value)
+            while Attribute.NAME not in entry.attributes:
+                if entry.tag == Tag.POINTER_TYPE:
+                    type.modifiers.insert(0, TypeModifier.pointer)
 
-            if entry.tag == Tag.CONST_TYPE:
-                type.modifiers.insert(0, TypeModifier.constant)
+                if entry.tag == Tag.CONST_TYPE:
+                    type.modifiers.insert(0, TypeModifier.constant)
 
-            if entry.tag == Tag.VOLATILE_TYPE:
-                type.modifiers.insert(0, TypeModifier.volatile)
+                if entry.tag == Tag.VOLATILE_TYPE:
+                    type.modifiers.insert(0, TypeModifier.volatile)
 
-            if entry.tag == Tag.REFERENCE_TYPE:
-                type.modifiers.insert(0, TypeModifier.reference)
+                if entry.tag == Tag.REFERENCE_TYPE:
+                    type.modifiers.insert(0, TypeModifier.reference)
 
-            if Attribute.TYPE not in entry.attributes:
-                if Attribute.LINKAGE_NAME in entry.attributes:
-                    type.name = entry.attributes[Attribute.LINKAGE_NAME].value
-                    return type
-                return None
+                if Attribute.TYPE not in entry.attributes:
+                    if Attribute.LINKAGE_NAME in entry.attributes:
+                        type.name = entry.attributes[Attribute.LINKAGE_NAME].value
+                        return type
+                    return None
 
-            entry = die.cu.get_DIE_from_refaddr(entry.attributes[Attribute.TYPE].value)
+                entry = die.cu.get_DIE_from_refaddr(entry.attributes[Attribute.TYPE].value)
 
-        type.name = entry.attributes[Attribute.NAME].value
+            type.name = entry.attributes[Attribute.NAME].value
 
-        if Attribute.DECL_FILE in entry.attributes:
-            type.decl_file = entry.attributes[Attribute.DECL_FILE].value
+            if Attribute.DECL_FILE in entry.attributes:
+                type.decl_file = entry.attributes[Attribute.DECL_FILE].value
 
-        entry = entry._parent
-        while entry and entry.tag == Tag.NAMESPACE:
-            type.namespaces.appendleft(entry.attributes[Attribute.NAME].value)
             entry = entry._parent
+            while entry and entry.tag == Tag.NAMESPACE:
+                type.namespaces.appendleft(entry.attributes[Attribute.NAME].value)
+                entry = entry._parent
+        except Exception as e:
+            # print(e)
+            return None
 
         return type
 

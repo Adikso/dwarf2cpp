@@ -6,8 +6,9 @@ from extractdebug.extractors.extractor import Field, Accessibility, Method, Type
 
 
 class OriginalCPPConverter(Converter):
-    def __init__(self):
+    def __init__(self, on_entry_render=None):
         self.includes = defaultdict(set)
+        self.on_entry_render = on_entry_render
 
     def name(self):
         return 'cpp'
@@ -43,7 +44,10 @@ class OriginalCPPConverter(Converter):
                 output += '\n'
 
             for entry in entries:
-                output += f'{entry}\n\n'
+                if self.on_entry_render:
+                    output += f'{self.on_entry_render(entry)}\n\n'
+                else:
+                    output += f'{entry}\n\n'
 
         return output
 
@@ -135,10 +139,17 @@ class OriginalCPPConverter(Converter):
                     )
                 )
             elif isinstance(member, Method):
-                parameters = [
-                    CPPParameter(name=param.name, type=param.type)
-                    for param in member.parameters if param.name != b'this'
-                ]
+                member_params = member.parameters if member.parameters else member.direct_parameters
+                parameters = []
+                for i, param in enumerate(member_params):
+                    if not member.static and i == 0:
+                        continue
+
+                    param_name = param.name
+                    if not param_name:
+                        param_name = f'arg{len(parameters)}'.encode('utf-8')
+
+                    parameters.append(CPPParameter(name=param_name, type=param.type))
 
                 # Handle detecting void type
                 return_type = member.type
@@ -146,10 +157,11 @@ class OriginalCPPConverter(Converter):
                     return_type = Type(name=b'void')
 
                 converted_members.append(CPPMethod(
-                    accessibility=Accessibility(member.accessibility),
+                    accessibility=Accessibility(member.accessibility) if member.accessibility < 3 else Accessibility.public,
                     type=return_type,
                     name=member.name,
                     static=member.static,
+                    low_pc=member.low_pc,
                     parameters=parameters)
                 )
         return converted_members
@@ -193,7 +205,10 @@ class CPPParameter:
         self.type = kwargs.get('type', None)
 
     def __repr__(self):
-        type_str = OriginalCPPConverter.type_string(self.type)
+        if self.type:
+            type_str = OriginalCPPConverter.type_string(self.type)
+        else:
+            type_str = 'void * /*<<ERROR_UNKNOWN>>*/ '
         return f'{type_str}{self.name}'
 
 
@@ -204,6 +219,7 @@ class CPPMethod:
         self.static = kwargs.get('static', None)
         self.parameters = kwargs.get('parameters', None)
         self.accessibility = kwargs.get('accessibility', None)
+        self.low_pc = kwargs.get('low_pc', None)
 
     def __repr__(self):
         if self.name.startswith('~'):

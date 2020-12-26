@@ -101,7 +101,9 @@ class Method:
         self.accessibility = kwargs.get('accessibility', Accessibility.private)
         self.static = kwargs.get('static', False)
         self.parameters = kwargs.get('parameters', [])
+        self.direct_parameters = kwargs.get('direct_parameters', [])
         self.parent = kwargs.get('parent', None)
+        self.low_pc = kwargs.get('low_pc', None)
 
     def __repr__(self):
         return f'Method{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
