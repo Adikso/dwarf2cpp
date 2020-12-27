@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from extractdebug.converters.common import get_project_files, relative_path, type_mapping
+from extractdebug.converters.common import get_project_files, relative_path, type_mapping, test_utf8, get_utf8
 from extractdebug.converters.converter import Converter
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
@@ -29,6 +29,10 @@ class OriginalCPPConverter(Converter):
             for included_file_id in self.includes[file_id]:
                 if isinstance(included_file_id, str):
                     output += f'#include <{included_file_id}>\n'
+                    continue
+
+                if included_file_id not in result.files:
+                    output += f'// unknown include file {included_file_id}\n'
                     continue
 
                 included_file = result.files[included_file_id]
@@ -119,7 +123,7 @@ class OriginalCPPConverter(Converter):
         for member in members:
             if isinstance(member, Field):
                 converted_members.append(CPPField(
-                    accessibility=Accessibility(member.accessibility),
+                    accessibility=Accessibility(member.accessibility) if member.accessibility < 3 else Accessibility.public,
                     type=member.type,
                     name=member.name,
                     static=member.static,
@@ -149,7 +153,7 @@ class OriginalCPPConverter(Converter):
                     if not param_name:
                         param_name = f'arg{len(parameters)}'.encode('utf-8')
 
-                    parameters.append(CPPParameter(name=param_name, type=param.type))
+                    parameters.append(CPPParameter(name=param_name, type=param.type, offset=param.offset))
 
                 # Handle detecting void type
                 return_type = member.type
@@ -194,28 +198,39 @@ class OriginalCPPConverter(Converter):
 
     @staticmethod
     def type_string(type):
+        if not type:
+            return '<<unknown>>'
+
         modifier_str = OriginalCPPConverter.type_modifiers_string(type.modifiers)
-        name_parts = [x.decode('utf-8') for x in type.namespaces] + [f'{type.name.decode("utf-8")}{modifier_str}']
+        name_parts = [x.decode('utf-8') for x in type.namespaces]
+
+        try:
+            if type.name:
+                name_parts.append(f'{type.name.decode("utf-8")}{modifier_str}')
+        except:
+            pass
+
         return '::'.join(name_parts)
 
 
 class CPPParameter:
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', b'').decode("utf-8")
-        self.type = kwargs.get('type', None)
+        self.name = get_utf8(kwargs, 'name', b'<<unknown param name>>')
+        self.type = kwargs.get('type', Type(name='<<unknown>>'))
+        self.offset = kwargs.get('offset', 0)
 
     def __repr__(self):
         if self.type:
             type_str = OriginalCPPConverter.type_string(self.type)
         else:
-            type_str = 'void * /*<<ERROR_UNKNOWN>>*/ '
+            type_str = f'void * /*<<ERROR_UNKNOWN - {hex(self.offset if self.offset else 0)}>>*/ '
         return f'{type_str}{self.name}'
 
 
 class CPPMethod:
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', b'').decode("utf-8")
-        self.type = kwargs.get('type', None)
+        self.name = get_utf8(kwargs, 'name', b'<<unknown method name>>')
+        self.type = kwargs.get('type', Type(name='<<unknown>>'))
         self.static = kwargs.get('static', None)
         self.parameters = kwargs.get('parameters', None)
         self.accessibility = kwargs.get('accessibility', None)
@@ -240,8 +255,8 @@ class CPPMethod:
 
 class CPPField:
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', b'').decode("utf-8")
-        self.type = kwargs.get('type', None)
+        self.name = get_utf8(kwargs, 'name', b'<<unknown field name>>')
+        self.type = kwargs.get('type', Type(name='<<unknown>>'))
         self.accessibility = kwargs.get('accessibility', None)
         self.static = kwargs.get('static', None)
         self.const_value = kwargs.get('const_value', None)
@@ -285,7 +300,7 @@ class CPPBlock:
 class CPPUnion(CPPBlock):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.name = kwargs.get('name', b'').decode("utf-8")
+        self.name = get_utf8(kwargs, 'name', b'<<unknown union name>>')
 
     def __repr__(self):
         output = 'union '
@@ -302,7 +317,10 @@ class CPPInheritance:
         self.accessibility = kwargs.get('accessibility', None)
 
     def __repr__(self):
-        output = self.cls.name.decode("utf-8")
+        if self.cls and test_utf8(self.cls.name):
+            output = self.cls.name.decode("utf-8")
+        else:
+            output = '<<invalid>>'
 
         if self.accessibility != Accessibility.private:
             output = f'{self.accessibility.name} {output}'
@@ -312,7 +330,7 @@ class CPPInheritance:
 
 class CPPClass:
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', b'').decode("utf-8")
+        self.name = get_utf8(kwargs, 'name', b'<<unknown cls name>>')
         self.inheritance = kwargs.get('inheritance', None)
         self.children = CPPBlock(children=kwargs.get('children', None))
 
@@ -327,7 +345,7 @@ class CPPClass:
 
 class CPPStruct:
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', b'').decode("utf-8")
+        self.name = get_utf8(kwargs, 'name', b'<<unknown struct name>>')
         self.children = CPPBlock(children=kwargs.get('children', None))
 
     def __repr__(self):
@@ -337,7 +355,7 @@ class CPPStruct:
 
 class CPPNamespace:
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', b'').decode("utf-8")
+        self.name = get_utf8(kwargs, 'name', b'<<unknown namespace name>>')
         self.elements = CPPBlock(
             children=kwargs.get('elements', None),
             accessibility=False
@@ -352,12 +370,9 @@ class CPPNamespace:
 
 class CPPTypeDef:
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', b'').decode("utf-8")
-        self.type = kwargs.get('type', None)
+        self.name = get_utf8(kwargs, 'name', b'<<unknown type name>>')
+        self.type = kwargs.get('type', Type(name=b'<<unknown>>'))
 
     def __repr__(self):
-        if not self.type:
-            self.type = Type(name=b'<<unknown>>')
-
         type_str = OriginalCPPConverter.type_string(self.type)
         return f'typedef {type_str}{self.name};'

@@ -77,6 +77,7 @@ class Parameter:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
         self.type = kwargs.get('type', None)
+        self.offset = kwargs.get('offset', None)
 
 
 class Type:
@@ -104,6 +105,7 @@ class Method:
         self.direct_parameters = kwargs.get('direct_parameters', [])
         self.parent = kwargs.get('parent', None)
         self.low_pc = kwargs.get('low_pc', None)
+        self.offset = kwargs.get('offset', None)
 
     def __repr__(self):
         return f'Method{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'

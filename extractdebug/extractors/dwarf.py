@@ -41,6 +41,7 @@ class DwarfExtractor(Extractor):
     def __init__(self):
         self._types = {}
         self._subprograms = {}
+        self.dwarf_info = None
 
     def test(self, file):
         """Checks if file contains DWARF debugging data"""
@@ -51,13 +52,13 @@ class DwarfExtractor(Extractor):
             return False
 
     def extract(self, file):
-        elf_file = ELFFile(file)
-        dwarf_info = elf_file.get_dwarf_info()
+        self.elf_file = ELFFile(file)
+        self.dwarf_info = self.elf_file.get_dwarf_info()
 
         elements = []
         files = {}
-        for cu in dwarf_info.iter_CUs():
-            files |= self.parse_files_info(dwarf_info, cu.structs)
+        for cu in self.dwarf_info.iter_CUs():
+            files = {**files, **self.parse_files_info(self.dwarf_info, cu.structs)}
             elements += self._parse_compilation_unit(cu)
 
         return ExtractorResult(file, files, elements)
@@ -91,9 +92,9 @@ class DwarfExtractor(Extractor):
     def _parse_namespace(self, die):
         elements = self._parse_children(die)
         namespace = Namespace(
-            name=die.attributes[Attribute.NAME].value,
+            name=die.attributes[Attribute.NAME].value if Attribute.NAME in die.attributes else None,
             elements=elements,
-            decl_file=die.attributes[Attribute.DECL_FILE].value
+            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
         )
 
         return namespace
@@ -141,14 +142,13 @@ class DwarfExtractor(Extractor):
         )
 
     def _parse_union_type(self, die):
-        class_name = die.attributes[Attribute.NAME].value
         members = []
 
         for child in die.iter_children():
             members.append(self._parse_member(child))
 
         return Union(
-            name=class_name,
+            name=die.attributes[Attribute.NAME].value if Attribute.NAME in die.attributes else None,
             fields=members,
             accessibility=self._get_accessibility(die),
             decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
@@ -165,7 +165,8 @@ class DwarfExtractor(Extractor):
                 name=attrs[Attribute.NAME].value,
                 type=class_type,
                 accessibility=accessibility,
-                static=Attribute.OBJECT_POINTER not in attrs
+                static=Attribute.OBJECT_POINTER not in attrs,
+                offset=child.offset
             )
 
             for sub_child in child.iter_children():
@@ -173,7 +174,8 @@ class DwarfExtractor(Extractor):
                     param_type = self._resolve_type(sub_child)
                     method.direct_parameters.append(Parameter(  # TODO
                         name=sub_child.attributes[Attribute.NAME].value if Attribute.NAME in sub_child.attributes else None,
-                        type=param_type
+                        type=param_type,
+                        offset=sub_child.offset
                     ))
 
             self._subprograms[child.offset] = method
@@ -189,18 +191,14 @@ class DwarfExtractor(Extractor):
                     const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
                 )
 
-            try:
-                type_die = child.cu.get_DIE_from_refaddr(child.attributes[Attribute.TYPE].value)
-            except:
-                return None
-
+            type_die = child.get_DIE_from_attribute(Attribute.TYPE)
             if type_die.tag == Tag.UNION_TYPE:
                 return self._parse_union(child)
 
         return None
 
     def _parse_union(self, die):
-        type_die = die.cu.get_DIE_from_refaddr(die.attributes[Attribute.TYPE].value)
+        type_die = die.get_DIE_from_attribute(Attribute.TYPE)
         members = []
 
         for child in type_die.iter_children():
@@ -222,11 +220,10 @@ class DwarfExtractor(Extractor):
 
         specification = die.attributes[Attribute.SPECIFICATION].value
         if specification not in self._subprograms:
-            try:
-                self._parse_member(die.cu.get_DIE_from_refaddr(specification))
-            except Exception as e:
-                # print(e)
-                return
+            self._parse_member(die.get_DIE_from_attribute(Attribute.SPECIFICATION))
+
+        if specification not in self._subprograms:
+            return None
 
         existing_method = self._subprograms[die.attributes[Attribute.SPECIFICATION].value]
         for child in die.iter_children():
@@ -250,15 +247,14 @@ class DwarfExtractor(Extractor):
 
         return files
 
-    @staticmethod
-    def _resolve_type(die):
+    def _resolve_type(self, die):
         type = Type()
 
         if Attribute.TYPE not in die.attributes:
             return None
 
         try:
-            entry = die.cu.get_DIE_from_refaddr(die.attributes[Attribute.TYPE].value)
+            entry = die.get_DIE_from_attribute(Attribute.TYPE)
             while Attribute.NAME not in entry.attributes:
                 if entry.tag == Tag.POINTER_TYPE:
                     type.modifiers.insert(0, TypeModifier.pointer)
@@ -278,7 +274,7 @@ class DwarfExtractor(Extractor):
                         return type
                     return None
 
-                entry = die.cu.get_DIE_from_refaddr(entry.attributes[Attribute.TYPE].value)
+                entry = entry.get_DIE_from_attribute(Attribute.TYPE)
 
             type.name = entry.attributes[Attribute.NAME].value
 

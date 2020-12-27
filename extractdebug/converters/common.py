@@ -37,3 +37,22 @@ def relative_path(base_path, file):
         path = path[2:]
 
     return path
+
+
+def test_utf8(data):
+    if not data:
+        return False
+
+    try:
+        data.decode('utf-8')
+        return True
+    except:
+        return False
+
+
+def get_utf8(source, name, default):
+    value = source.get(name, None)
+    if not value or not test_utf8(value):
+        return default.decode('utf-8')
+
+    return value.decode('utf-8')
