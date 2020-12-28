@@ -1,6 +1,7 @@
 from collections import defaultdict
+from orderedset import OrderedSet
 
-from extractdebug.converters.common import get_project_files, relative_path, type_mapping, test_utf8, get_utf8
+from extractdebug.converters.common import relative_path, type_mapping, test_utf8, get_utf8, demangle_type
 from extractdebug.converters.converter import Converter
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
@@ -9,42 +10,31 @@ class OriginalCPPConverter(Converter):
     def __init__(self, on_entry_render=None):
         self.includes = defaultdict(set)
         self.on_entry_render = on_entry_render
+        self.result = None
 
     def name(self):
         return 'cpp'
 
     def convert(self, result):
-        base_path, project_files = get_project_files(result.files)
-        contents = self.__convert_elements(
-            result.elements,
-            decl_files=[file.id for file in project_files.values()]
-        )
+        self.result = result
+        base_path = result.base_dir
+        contents = self.__convert_elements(result.elements)
 
         output = ''
-        for file_id, entries in contents.items():
-            project_file = project_files[file_id]
-            file_relative_path = relative_path(base_path, project_file).decode('utf-8')
+        for file_path, entries in contents.items():
+            file_relative_path = relative_path(base_path, file_path).decode('utf-8')
             output += f'// Source file: {file_relative_path}\n'
 
-            for included_file_id in self.includes[file_id]:
-                if isinstance(included_file_id, str):
-                    output += f'#include <{included_file_id}>\n'
-                    continue
-
-                if included_file_id not in result.files:
-                    output += f'// unknown include file {included_file_id}\n'
-                    continue
-
-                included_file = result.files[included_file_id]
-                if included_file.directory.startswith(base_path):
-                    included_relative_path = relative_path(project_file.directory, included_file)
+            for included_file_path in self.includes[file_path]:
+                if included_file_path.startswith(base_path):
+                    included_relative_path = relative_path(file_path, included_file_path)
                     include_name = included_relative_path.decode('utf-8')
                     output += f'#include "{include_name}"\n'
                 else:
-                    include_name = included_file.name.decode('utf-8')
+                    include_name = included_file_path.decode('utf-8')
                     output += f'#include <{include_name}>\n'
 
-            if self.includes[file_id]:
+            if self.includes[file_path]:
                 output += '\n'
 
             for entry in entries:
@@ -55,16 +45,25 @@ class OriginalCPPConverter(Converter):
 
         return output
 
-    def __convert_elements(self, elements, decl_files=None):
-        entries = defaultdict(list)
+    def __convert_elements(self, elements):
+        entries = defaultdict(OrderedSet)
 
         for element in elements:
-            if decl_files and element.decl_file not in decl_files:
+            if not element.decl_file:
+                continue
+
+            cu, file = element.decl_file
+            decl_files = self.result.files[cu]
+            if decl_files and file.id not in decl_files:
+                continue
+
+            decl_file = decl_files[file.id].full_path()
+            if not decl_file.startswith(self.result.base_dir) or b'<built-in>' in decl_file:
                 continue
 
             if isinstance(element, Namespace):
                 elements = list(self.__convert_elements(element.elements).values())
-                entries[element.decl_file].append(
+                entries[decl_file].add(
                     CPPNamespace(
                         name=element.name,
                         elements=elements[0] if elements else []
@@ -72,7 +71,7 @@ class OriginalCPPConverter(Converter):
                 )
 
             if isinstance(element, Struct):
-                entries[element.decl_file].append(
+                entries[decl_file].add(
                     CPPStruct(
                         name=element.name,
                         children=self.__convert_members(element, element.members)
@@ -80,7 +79,7 @@ class OriginalCPPConverter(Converter):
                 )
 
             if isinstance(element, Union):
-                entries[element.decl_file].append(
+                entries[decl_file].add(
                     CPPUnion(
                         name=element.name,
                         children=self.__convert_members(element, element.fields),
@@ -89,12 +88,12 @@ class OriginalCPPConverter(Converter):
                 )
 
             if isinstance(element, Class):
-                entries[element.decl_file].append(
+                entries[decl_file].add(
                     self.__convert_class(element)
                 )
 
             if isinstance(element, TypeDef):
-                entries[element.decl_file].append(
+                entries[decl_file].add(
                     CPPTypeDef(
                         name=element.name,
                         type=element.type
@@ -130,11 +129,11 @@ class OriginalCPPConverter(Converter):
                     const_value=member.const_value)
                 )
 
-                type_str = OriginalCPPConverter.type_string(member.type)[:-1]
-                if type_str in type_mapping:
-                    self.includes[member.decl_file].add(type_mapping[type_str])
-                elif member.type and member.type.decl_file and member.type.decl_file != member.decl_file:
-                    self.includes[member.decl_file].add(member.type.decl_file)
+                # type_str = OriginalCPPConverter.type_string(member.type)[:-1]
+                # if type_str in type_mapping:
+                #     self.includes[member.decl_file[1].full_path()].add(type_mapping[type_str])
+                if member.type and member.type.decl_file and member.type.decl_file[1] != member.decl_file[1]:
+                    self.includes[member.decl_file[1].full_path()].add(member.type.decl_file[1].full_path())
             elif isinstance(member, Union):
                 converted_members.append(
                     CPPUnion(
@@ -154,6 +153,9 @@ class OriginalCPPConverter(Converter):
                         param_name = f'arg{len(parameters)}'.encode('utf-8')
 
                     parameters.append(CPPParameter(name=param_name, type=param.type, offset=param.offset))
+
+                    if member.decl_file and param.type and param.type.decl_file and param.type.decl_file[1] != member.decl_file[1]:
+                        self.includes[member.decl_file[1].full_path()].add(param.type.decl_file[1].full_path())
 
                 # Handle detecting void type
                 return_type = member.type
@@ -198,17 +200,12 @@ class OriginalCPPConverter(Converter):
 
     @staticmethod
     def type_string(type):
-        if not type:
-            return '<<unknown>>'
-
         modifier_str = OriginalCPPConverter.type_modifiers_string(type.modifiers)
         name_parts = [x.decode('utf-8') for x in type.namespaces]
 
-        try:
-            if type.name:
-                name_parts.append(f'{type.name.decode("utf-8")}{modifier_str}')
-        except:
-            pass
+        if type.name and test_utf8(type.name):
+            type_name = demangle_type(type.name) if len(type.name) > 30 else type.name
+            name_parts.append(f'{type_name.decode("utf-8")}{modifier_str}')
 
         return '::'.join(name_parts)
 
@@ -334,6 +331,12 @@ class CPPClass:
         self.inheritance = kwargs.get('inheritance', None)
         self.children = CPPBlock(children=kwargs.get('children', None))
 
+    def __hash__(self):
+        return hash(('class', self.name))
+
+    def __eq__(self, other):
+        return isinstance(other, CPPClass) and self.name == other.name
+
     def __repr__(self):
         output = f"class {self.name}"
 
@@ -348,6 +351,12 @@ class CPPStruct:
         self.name = get_utf8(kwargs, 'name', b'<<unknown struct name>>')
         self.children = CPPBlock(children=kwargs.get('children', None))
 
+    def __hash__(self):
+        return hash(('struct', self.name))
+
+    def __eq__(self, other):
+        return isinstance(other, CPPStruct) and self.name == other.name
+
     def __repr__(self):
         output = f"struct {self.name}"
         return f'{output} {self.children}'
@@ -361,6 +370,12 @@ class CPPNamespace:
             accessibility=False
         )
 
+    def __hash__(self):
+        return hash(('namespace', self.name))
+
+    def __eq__(self, other):
+        return isinstance(other, CPPNamespace) and self.name == other.name
+
     def __repr__(self):
         output = f'namespace {self.name} '
         output += str(self.elements)
@@ -372,6 +387,12 @@ class CPPTypeDef:
     def __init__(self, **kwargs):
         self.name = get_utf8(kwargs, 'name', b'<<unknown type name>>')
         self.type = kwargs.get('type', Type(name=b'<<unknown>>'))
+
+    def __hash__(self):
+        return hash(('typedef', self.name))
+
+    def __eq__(self, other):
+        return isinstance(other, CPPTypeDef) and self.name == other.name
 
     def __repr__(self):
         type_str = OriginalCPPConverter.type_string(self.type)

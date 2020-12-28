@@ -1,3 +1,4 @@
+import os
 from collections import deque
 from enum import Enum
 
@@ -11,10 +12,11 @@ class Extractor:
 
 
 class ExtractorResult:
-    def __init__(self, source_file, files, elements):
+    def __init__(self, source_file, files, elements, base_dir):
         self.source_file = source_file
         self.files = files
         self.elements = elements
+        self.base_dir = base_dir
 
     def __repr__(self):
         return f'ExtractorResult{self.elements}'
@@ -106,6 +108,7 @@ class Method:
         self.parent = kwargs.get('parent', None)
         self.low_pc = kwargs.get('low_pc', None)
         self.offset = kwargs.get('offset', None)
+        self.decl_file = kwargs.get('decl_file', None)
 
     def __repr__(self):
         return f'Method{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
@@ -132,6 +135,9 @@ class File:
         self.id = kwargs.get('id', 0)
         self.name = kwargs.get('name', None)
         self.directory = kwargs.get('directory', None)
+
+    def full_path(self):
+        return os.path.abspath(os.path.join(self.directory, self.name))
 
     def __repr__(self):
         return f'File{{id={self.id}, name={self.name}, directory={self.directory}'

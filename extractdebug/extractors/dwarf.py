@@ -35,6 +35,7 @@ class Attribute:
     DECL_FILE = 'DW_AT_decl_file'
     LINKAGE_NAME = 'DW_AT_linkage_name'
     LOW_PC = 'DW_AT_low_pc'
+    COMP_DIR = 'DW_AT_comp_dir'
 
 
 class DwarfExtractor(Extractor):
@@ -42,6 +43,7 @@ class DwarfExtractor(Extractor):
         self._types = {}
         self._subprograms = {}
         self.dwarf_info = None
+        self.cu_files = {}
 
     def test(self, file):
         """Checks if file contains DWARF debugging data"""
@@ -56,12 +58,17 @@ class DwarfExtractor(Extractor):
         self.dwarf_info = self.elf_file.get_dwarf_info()
 
         elements = []
-        files = {}
+        cus = []
         for cu in self.dwarf_info.iter_CUs():
-            files = {**files, **self.parse_files_info(self.dwarf_info, cu.structs)}
-            elements += self._parse_compilation_unit(cu)
+            top_die = cu.get_top_DIE()
+            if 'DW_AT_stmt_list' in top_die.attributes:
+                self.cu_files[cu.cu_offset] = self.parse_files_info(self.dwarf_info, cu.structs, top_die.attributes['DW_AT_stmt_list'].value)
 
-        return ExtractorResult(file, files, elements)
+            elements += self._parse_compilation_unit(cu)
+            cus.append(cu)
+
+        base_dir = cus[0].get_top_DIE().attributes[Attribute.COMP_DIR].value
+        return ExtractorResult(file, self.cu_files, elements, base_dir)
 
     def _parse_children(self, die):
         elements = []
@@ -94,7 +101,7 @@ class DwarfExtractor(Extractor):
         namespace = Namespace(
             name=die.attributes[Attribute.NAME].value if Attribute.NAME in die.attributes else None,
             elements=elements,
-            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
+            decl_file=self.get_file(die)
         )
 
         return namespace
@@ -103,7 +110,7 @@ class DwarfExtractor(Extractor):
         return TypeDef(
             name=die.attributes[Attribute.NAME].value,
             type=self._resolve_type(die),
-            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
+            decl_file=self.get_file(die)
         )
 
     def _parse_class_type(self, die):
@@ -125,7 +132,7 @@ class DwarfExtractor(Extractor):
             members=members,
             inheritance_class=inheritance_class,
             inheritance_accessibility=inheritance_accessibility,
-            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
+            decl_file=self.get_file(die)
         )
 
     def _parse_struct_type(self, die):
@@ -138,7 +145,7 @@ class DwarfExtractor(Extractor):
         return Struct(
             name=class_name,
             members=members,
-            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
+            decl_file=self.get_file(die)
         )
 
     def _parse_union_type(self, die):
@@ -151,7 +158,7 @@ class DwarfExtractor(Extractor):
             name=die.attributes[Attribute.NAME].value if Attribute.NAME in die.attributes else None,
             fields=members,
             accessibility=self._get_accessibility(die),
-            decl_file=die.attributes[Attribute.DECL_FILE].value if Attribute.DECL_FILE in die.attributes else None
+            decl_file=self.get_file(die)
         )
 
     def _parse_member(self, child):
@@ -166,7 +173,8 @@ class DwarfExtractor(Extractor):
                 type=class_type,
                 accessibility=accessibility,
                 static=Attribute.OBJECT_POINTER not in attrs,
-                offset=child.offset
+                offset=child.offset,
+                decl_file=self.get_file(child)
             )
 
             for sub_child in child.iter_children():
@@ -184,7 +192,7 @@ class DwarfExtractor(Extractor):
             if class_type:
                 return Field(
                     name=attrs[Attribute.NAME].value if Attribute.NAME in attrs else b'ERROR_UNKNOWN',
-                    decl_file=attrs[Attribute.DECL_FILE].value if Attribute.DECL_FILE in attrs else None,
+                    decl_file=self.get_file(child),
                     type=class_type,
                     accessibility=accessibility,
                     static=Attribute.EXTERNAL in attrs,
@@ -238,10 +246,10 @@ class DwarfExtractor(Extractor):
         if Attribute.LOW_PC in die.attributes:
             existing_method.low_pc = die.attributes[Attribute.LOW_PC].value
 
-    def parse_files_info(self, dwarf_info, structs):
+    def parse_files_info(self, dwarf_info, structs, offset=0):
         files = {}
 
-        lineprog_header = struct_parse(structs.Dwarf_lineprog_header, dwarf_info.debug_line_sec.stream, 0)
+        lineprog_header = struct_parse(structs.Dwarf_lineprog_header, dwarf_info.debug_line_sec.stream, offset)
         for i, entry in enumerate(lineprog_header.file_entry):
             files[i + 1] = File(id=i + 1, name=entry.name, directory=lineprog_header.include_directory[entry.dir_index - 1])
 
@@ -279,7 +287,7 @@ class DwarfExtractor(Extractor):
             type.name = entry.attributes[Attribute.NAME].value
 
             if Attribute.DECL_FILE in entry.attributes:
-                type.decl_file = entry.attributes[Attribute.DECL_FILE].value
+                type.decl_file = self.get_file(entry)
 
             entry = entry._parent
             while entry and entry.tag == Tag.NAMESPACE:
@@ -297,3 +305,10 @@ class DwarfExtractor(Extractor):
             return die.attributes[Attribute.ACCESSIBILITY].value
 
         return Accessibility.private.value
+
+    def get_file(self, die):
+        if Attribute.DECL_FILE not in die.attributes:
+            return None
+
+        decl_file = die.attributes[Attribute.DECL_FILE].value
+        return die.cu.cu_offset, self.cu_files[die.cu.cu_offset][decl_file]
