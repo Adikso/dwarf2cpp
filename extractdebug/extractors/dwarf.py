@@ -180,7 +180,8 @@ class DwarfExtractor(Extractor):
                 accessibility=accessibility,
                 static=Attribute.OBJECT_POINTER not in attrs,
                 offset=child.offset,
-                decl_file=self.get_file(child)
+                decl_file=self.get_file(child),
+                fully_defined=False
             )
 
             for sub_child in child.iter_children():
@@ -232,14 +233,11 @@ class DwarfExtractor(Extractor):
         if Attribute.SPECIFICATION not in die.attributes:
             return
 
-        specification = die.attributes[Attribute.SPECIFICATION].value
-        if specification not in self._subprograms:
+        specification_die_offset = die.get_DIE_from_attribute(Attribute.SPECIFICATION).offset
+        if specification_die_offset not in self._subprograms:
             self._parse_member(die.get_DIE_from_attribute(Attribute.SPECIFICATION))
 
-        if specification not in self._subprograms:
-            return None
-
-        existing_method = self._subprograms[die.attributes[Attribute.SPECIFICATION].value]
+        existing_method = self._subprograms[specification_die_offset]
         for child in die.iter_children():
             if child.tag == Tag.PARAMETER:
                 param_type = self._resolve_type(child)
@@ -251,6 +249,8 @@ class DwarfExtractor(Extractor):
 
         if Attribute.LOW_PC in die.attributes:
             existing_method.low_pc = die.attributes[Attribute.LOW_PC].value
+
+        existing_method.fully_defined = True
 
     def parse_files_info(self, dwarf_info, structs, offset=0):
         files = {}

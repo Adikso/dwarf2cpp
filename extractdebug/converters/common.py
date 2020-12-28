@@ -1,5 +1,6 @@
 import os
 import re
+from collections import OrderedDict
 
 type_mapping = {
     'std::string': 'string'
@@ -60,3 +61,33 @@ def demangle_type(source):
     # for regex, replacement in regexes:
     #     source = regex.sub(replacement, source)
     return source
+
+
+class Entry:
+    def __init__(self):
+        self.name = None
+
+    def fill_value(self):
+        raise NotImplementedError()
+
+    def id(self):
+        return f'{self.__class__.__name__} {self.name}'
+
+
+class EntriesStorage:
+    def __init__(self):
+        self.quick_access = OrderedDict()
+
+    def __iter__(self):
+        return iter(list(self.quick_access.values()))
+
+    def __len__(self):
+        return len(self.quick_access.values())
+
+    def send(self, entry):
+        if entry.id() in self.quick_access:
+            prev_element = self.quick_access[entry.id()]
+            if prev_element.fill_value() < entry.fill_value():
+                self.quick_access[entry.id()] = entry
+        else:
+            self.quick_access[entry.id()] = entry

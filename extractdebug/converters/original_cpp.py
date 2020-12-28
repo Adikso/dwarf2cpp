@@ -2,7 +2,7 @@ from collections import defaultdict
 from orderedset import OrderedSet
 import numpy as np
 
-from extractdebug.converters.common import relative_path, type_mapping, test_utf8, get_utf8, demangle_type
+from extractdebug.converters.common import relative_path, type_mapping, test_utf8, get_utf8, demangle_type, EntriesStorage, Entry
 from extractdebug.converters.converter import Converter
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
@@ -47,7 +47,7 @@ class OriginalCPPConverter(Converter):
         return output
 
     def __convert_elements(self, elements):
-        entries = defaultdict(OrderedSet)
+        entries = defaultdict(EntriesStorage)
 
         for element in elements:
             if not element.decl_file:
@@ -64,7 +64,7 @@ class OriginalCPPConverter(Converter):
 
             if isinstance(element, Namespace):
                 elements = list(self.__convert_elements(element.elements).values())
-                entries[decl_file].add(
+                entries[decl_file].send(
                     CPPNamespace(
                         name=element.name,
                         elements=elements[0] if elements else []
@@ -72,7 +72,7 @@ class OriginalCPPConverter(Converter):
                 )
 
             if isinstance(element, Struct):
-                entries[decl_file].add(
+                entries[decl_file].send(
                     CPPStruct(
                         name=element.name,
                         children=self.__convert_members(element, element.members)
@@ -80,7 +80,7 @@ class OriginalCPPConverter(Converter):
                 )
 
             if isinstance(element, Union):
-                entries[decl_file].add(
+                entries[decl_file].send(
                     CPPUnion(
                         name=element.name,
                         children=self.__convert_members(element, element.fields),
@@ -89,12 +89,12 @@ class OriginalCPPConverter(Converter):
                 )
 
             if isinstance(element, Class):
-                entries[decl_file].add(
+                entries[decl_file].send(
                     self.__convert_class(element)
                 )
 
             if isinstance(element, TypeDef):
-                entries[decl_file].add(
+                entries[decl_file].send(
                     CPPTypeDef(
                         name=element.name,
                         type=element.type
@@ -143,6 +143,9 @@ class OriginalCPPConverter(Converter):
                     )
                 )
             elif isinstance(member, Method):
+                if not member.fully_defined:
+                    continue
+
                 member_params = member.parameters if member.parameters else member.direct_parameters
                 parameters = []
                 for i, param in enumerate(member_params):
@@ -304,10 +307,13 @@ class CPPBlock:
         return '{\n' + '\n'.join(lines) + '\n' + '};'
 
 
-class CPPUnion(CPPBlock):
+class CPPUnion(CPPBlock, Entry):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = get_utf8(kwargs, 'name', b'<<unknown union name>>')
+
+    def fill_value(self):
+        return len(self.children)
 
     def __repr__(self):
         output = 'union '
@@ -335,17 +341,15 @@ class CPPInheritance:
         return output
 
 
-class CPPClass:
+class CPPClass(Entry):
     def __init__(self, **kwargs):
+        super().__init__()
         self.name = get_utf8(kwargs, 'name', b'<<unknown cls name>>')
         self.inheritance = kwargs.get('inheritance', None)
         self.children = CPPBlock(children=kwargs.get('children', None))
 
-    def __hash__(self):
-        return hash(('class', self.name))
-
-    def __eq__(self, other):
-        return isinstance(other, CPPClass) and self.name == other.name
+    def fill_value(self):
+        return len(self.children.children)
 
     def __repr__(self):
         output = f"class {self.name}"
@@ -356,35 +360,31 @@ class CPPClass:
         return output + f' {self.children}'
 
 
-class CPPStruct:
+class CPPStruct(Entry):
     def __init__(self, **kwargs):
+        super().__init__()
         self.name = get_utf8(kwargs, 'name', b'<<unknown struct name>>')
         self.children = CPPBlock(children=kwargs.get('children', None))
 
-    def __hash__(self):
-        return hash(('struct', self.name))
-
-    def __eq__(self, other):
-        return isinstance(other, CPPStruct) and self.name == other.name
+    def fill_value(self):
+        return len(self.children.children)
 
     def __repr__(self):
         output = f"struct {self.name}"
         return f'{output} {self.children}'
 
 
-class CPPNamespace:
+class CPPNamespace(Entry):
     def __init__(self, **kwargs):
+        super().__init__()
         self.name = get_utf8(kwargs, 'name', b'<<unknown namespace name>>')
         self.elements = CPPBlock(
             children=kwargs.get('elements', None),
             accessibility=False
         )
 
-    def __hash__(self):
-        return hash(('namespace', self.name))
-
-    def __eq__(self, other):
-        return isinstance(other, CPPNamespace) and self.name == other.name
+    def fill_value(self):
+        return len(self.elements.children)
 
     def __repr__(self):
         output = f'namespace {self.name} '
@@ -393,16 +393,14 @@ class CPPNamespace:
         return output
 
 
-class CPPTypeDef:
+class CPPTypeDef(Entry):
     def __init__(self, **kwargs):
+        super().__init__()
         self.name = get_utf8(kwargs, 'name', b'<<unknown type name>>')
         self.type = kwargs.get('type', Type(name=b'<<unknown>>'))
 
-    def __hash__(self):
-        return hash(('typedef', self.name))
-
-    def __eq__(self, other):
-        return isinstance(other, CPPTypeDef) and self.name == other.name
+    def fill_value(self):
+        return 1 if self.type.name else 0
 
     def __repr__(self):
         type_str = OriginalCPPConverter.type_string(self.type)

@@ -109,6 +109,7 @@ class Method:
         self.low_pc = kwargs.get('low_pc', None)
         self.offset = kwargs.get('offset', None)
         self.decl_file = kwargs.get('decl_file', None)
+        self.fully_defined = kwargs.get('fully_defined', None)
 
     def __repr__(self):
         return f'Method{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
