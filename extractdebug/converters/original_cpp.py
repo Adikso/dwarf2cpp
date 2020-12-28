@@ -1,5 +1,6 @@
 from collections import defaultdict
 from orderedset import OrderedSet
+import numpy as np
 
 from extractdebug.converters.common import relative_path, type_mapping, test_utf8, get_utf8, demangle_type
 from extractdebug.converters.converter import Converter
@@ -263,7 +264,16 @@ class CPPField:
         output = f'{type_str}{self.name}'
 
         if self.const_value:
-            output += f' = {self.const_value}'
+            const_value_str = str(self.const_value).replace("\n", "")
+            if isinstance(self.const_value, list):
+                if self.type.name == b'float':
+                    data_bytes = np.array(self.const_value, dtype=np.uint8)
+                    data_as_float = str(data_bytes.view(dtype=np.float32))
+                    output += f' = {data_as_float[1:-1]}f'
+                else:
+                    output += f' /* = {const_value_str} */'
+            else:
+                output += f' = {const_value_str}'
 
         if self.static:
             output = f'static {output}'

@@ -1,3 +1,5 @@
+import os
+
 from elftools.common.exceptions import ELFError
 from elftools.common.utils import struct_parse
 from elftools.elf.elffile import ELFFile
@@ -68,6 +70,10 @@ class DwarfExtractor(Extractor):
             cus.append(cu)
 
         base_dir = cus[0].get_top_DIE().attributes[Attribute.COMP_DIR].value
+        first_file = cus[0].get_top_DIE().attributes[Attribute.NAME].value
+        if os.path.isabs(first_file):
+            base_dir = os.path.commonpath([base_dir, first_file])
+
         return ExtractorResult(file, self.cu_files, elements, base_dir)
 
     def _parse_children(self, die):
