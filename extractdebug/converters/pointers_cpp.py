@@ -22,10 +22,10 @@ class PointersCPPConverter(OriginalCPPConverter):
 
         fields = []
         for sub_entry in entry.children.children:
-            if not isinstance(sub_entry, CPPMethod) or sub_entry.name.startswith('~'):
+            if not isinstance(sub_entry, CPPMethod) or sub_entry.name.startswith('~') or not sub_entry.low_pc:
                 continue
 
-            address = hex(sub_entry.low_pc) if sub_entry.low_pc else "nullptr"
+            address = hex(sub_entry.low_pc)
             fields.append(CPPField(
                 name=sub_entry.name,
                 type=Type(name=b'unsigned long long'),
