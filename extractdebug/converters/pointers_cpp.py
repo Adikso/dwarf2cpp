@@ -1,11 +1,11 @@
 from extractdebug.converters import OriginalCPPConverter
 from extractdebug.converters.original_cpp import CPPClass, CPPMethod, CPPNamespace, CPPField
-from extractdebug.extractors.extractor import Type, TypeModifier
+from extractdebug.extractors.extractor import Type
 
 
 class PointersCPPConverter(OriginalCPPConverter):
-    def __init__(self, result):
-        super().__init__(result, on_entry_render=self.on_entry_render)
+    def __init__(self, result, config):
+        super().__init__(result, config, on_entry_render=self.on_entry_render)
 
     @staticmethod
     def name():

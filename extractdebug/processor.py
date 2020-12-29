@@ -11,12 +11,12 @@ def process(file):
     return extractor.extract(file)
 
 
-def convert(result, format):
+def convert(result, format, config):
     converter = find_converter(format)
     if not converter:
         return None
 
-    return converter(result).convert()
+    return converter(result, config).convert()
 
 
 def find_extractor(file):

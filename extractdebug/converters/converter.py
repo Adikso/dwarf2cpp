@@ -1,6 +1,7 @@
 class Converter:
-    def __init__(self, result):
+    def __init__(self, result, config):
         self.result = result
+        self.config = config
 
     @staticmethod
     def name():

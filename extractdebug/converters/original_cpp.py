@@ -8,9 +8,10 @@ from extractdebug.extractors.extractor import Field, Accessibility, Method, Type
 
 
 class OriginalCPPConverter(Converter):
-    def __init__(self, result, on_entry_render=None):
-        super().__init__(result)
+    def __init__(self, result, config, on_entry_render=None):
+        super().__init__(result, config)
         self.includes = defaultdict(set)
+        self.used_types = defaultdict(set)
         self.on_entry_render = on_entry_render
 
     @staticmethod
@@ -28,17 +29,18 @@ class OriginalCPPConverter(Converter):
             file_output = f'// Source file: {file_relative_path}\n'
             file_output += f'#ifndef {simple_name}_H\n#define {simple_name}_H\n\n'
 
-            for included_file_path in self.includes[file_path]:
-                if included_file_path.startswith(self.result.base_dir):
-                    included_relative_path = relative_path(file_path, included_file_path)
-                    include_name = included_relative_path.decode('utf-8')
-                    file_output += f'#include "{include_name}"\n'
-                else:
-                    include_name = included_file_path.decode('utf-8')
-                    file_output += f'#include <{include_name}>\n'
+            if self.config['includes']:
+                for included_file_path in self.includes[file_path]:
+                    if included_file_path.startswith(self.result.base_dir):
+                        included_relative_path = relative_path(file_path, included_file_path)
+                        include_name = included_relative_path.decode('utf-8')
+                        file_output += f'#include "{include_name}"\n'
+                    else:
+                        include_name = included_file_path.decode('utf-8')
+                        file_output += f'#include <{include_name}>\n'
 
-            if self.includes[file_path]:
-                file_output += '\n'
+                if self.includes[file_path]:
+                    file_output += '\n'
 
             for entry in entries:
                 if self.on_entry_render:
