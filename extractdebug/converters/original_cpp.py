@@ -2,7 +2,7 @@ import os
 from collections import defaultdict
 import numpy as np
 
-from extractdebug.converters.common import relative_path, test_utf8, get_utf8, demangle_type, EntriesStorage, Entry
+from extractdebug.converters.common import relative_path, test_utf8, get_utf8, EntriesStorage, Entry
 from extractdebug.converters.converter import Converter
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type, EnumerationType
 
@@ -154,9 +154,6 @@ class OriginalCPPConverter(Converter):
                     const_value=member.const_value)
                 )
 
-                # type_str = OriginalCPPConverter.type_string(member.type)[:-1]
-                # if type_str in type_mapping:
-                #     self.includes[member.decl_file[1].full_path()].add(type_mapping[type_str])
                 if member.type and member.type.decl_file and member.type.decl_file[1] != member.decl_file[1]:
                     self.includes[member.decl_file[1].full_path()].add(member.type.decl_file[1].full_path())
             elif isinstance(member, Union):
@@ -241,8 +238,7 @@ class OriginalCPPConverter(Converter):
         name_parts = [x.decode('utf-8') for x in type.namespaces]
 
         if type.name and test_utf8(type.name):
-            type_name = demangle_type(type.name) if len(type.name) > 30 else type.name
-            name_parts.append(f'{type_name.decode("utf-8")}{modifier_str}')
+            name_parts.append(f'{type.name.decode("utf-8")}{modifier_str}')
 
         return '::'.join(name_parts)
 

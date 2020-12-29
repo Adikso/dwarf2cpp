@@ -1,10 +1,5 @@
 import os
-import re
 from collections import OrderedDict
-
-type_mapping = {
-    'std::string': 'string'
-}
 
 
 def get_project_files(result):
@@ -46,20 +41,6 @@ def get_utf8(source, name, default):
         return default.decode('utf-8')
 
     return value.decode('utf-8')
-
-
-regexes = [
-    (re.compile(r'\bstd(ext)?::'), r''),
-    (re.compile(r'\b(_?basic_(string|if?stream|of?stream|([io]?stringstream)))<(char|wchar_t), ?(string_)?char_traits<\4>(, ?__default_alloc_template<(true|false), ?0>)? ?>::\1'), r'\2::\2'),
-    (re.compile(r'\b_?basic_(string|if?stream|of?stream|([io]?stringstream))<(char|wchar_t), ?(string_)?char_traits<\3>(, allocator<\3>)? ?>'), r'\1'),
-    (re.compile(r'\b__gnu_cxx::'), r'')
-]
-
-
-def demangle_type(source):
-    # for regex, replacement in regexes:
-    #     source = regex.sub(replacement, source)
-    return source
 
 
 class Entry:
