@@ -66,6 +66,21 @@ class Field:
         return f'Field{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
 
 
+class EnumerationType:
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', None)
+        self.type = kwargs.get('type', None)
+        self.enumerators = kwargs.get('enumerators', None)
+        self.decl_file = kwargs.get('decl_file', None)
+        self.accessibility = kwargs.get('accessibility', Accessibility.private)
+
+
+class Enumerator:
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', None)
+        self.value = kwargs.get('value', None)
+
+
 class Union:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)

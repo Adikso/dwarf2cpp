@@ -5,7 +5,7 @@ from elftools.common.utils import struct_parse
 from elftools.elf.elffile import ELFFile
 
 from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union, Struct, Namespace, TypeDef, \
-    File
+    File, Enumerator, EnumerationType
 
 
 class Tag:
@@ -23,6 +23,7 @@ class Tag:
     STRUCTURE_TYPE = 'DW_TAG_structure_type'
     NAMESPACE = 'DW_TAG_namespace'
     TYPEDEF = 'DW_TAG_typedef'
+    ENUMERATION_TYPE = 'DW_TAG_enumeration_type'
 
 
 class Attribute:
@@ -95,6 +96,8 @@ class DwarfExtractor(Extractor):
                 elements.append(self.__parse_namespace(child))
             elif child.tag == Tag.TYPEDEF:
                 elements.append(self.__parse_typedef(child))
+            elif child.tag == Tag.ENUMERATION_TYPE:
+                elements.append(self.__parse_enum(child))
 
         return elements
 
@@ -209,6 +212,8 @@ class DwarfExtractor(Extractor):
             type_die = child.get_DIE_from_attribute(Attribute.TYPE)
             if type_die.tag == Tag.UNION_TYPE:
                 return self.__parse_union(child)
+        elif child.tag == Tag.ENUMERATION_TYPE:
+            return self.__parse_enum(child)
 
         return None
 
@@ -226,6 +231,26 @@ class DwarfExtractor(Extractor):
 
         return Union(
             fields=members,
+            accessibility=self.__get_accessibility(die)
+        )
+
+    def __parse_enum(self, die):
+        if Attribute.NAME not in die.attributes:
+            return None
+
+        class_type = self.__resolve_type(die)
+
+        enumerators = []
+        for child in die.iter_children():
+            child_name = child.attributes[Attribute.NAME].value
+            child_value = child.attributes[Attribute.CONST_VALUE].value
+            enumerators.append(Enumerator(name=child_name, value=child_value))
+
+        return EnumerationType(
+            name=die.attributes[Attribute.NAME].value,
+            type=class_type,
+            enumerators=enumerators,
+            decl_file=self.__get_file(die),
             accessibility=self.__get_accessibility(die)
         )
 

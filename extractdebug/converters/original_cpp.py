@@ -4,7 +4,7 @@ import numpy as np
 
 from extractdebug.converters.common import relative_path, test_utf8, get_utf8, demangle_type, EntriesStorage, Entry
 from extractdebug.converters.converter import Converter
-from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
+from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type, EnumerationType
 
 
 class OriginalCPPConverter(Converter):
@@ -86,7 +86,7 @@ class OriginalCPPConverter(Converter):
                     )
                 )
 
-            if isinstance(element, Struct):
+            elif isinstance(element, Struct):
                 entries[decl_file].send(
                     CPPStruct(
                         name=element.name,
@@ -94,7 +94,7 @@ class OriginalCPPConverter(Converter):
                     )
                 )
 
-            if isinstance(element, Union):
+            elif isinstance(element, Union):
                 entries[decl_file].send(
                     CPPUnion(
                         name=element.name,
@@ -103,16 +103,25 @@ class OriginalCPPConverter(Converter):
                     )
                 )
 
-            if isinstance(element, Class):
+            elif isinstance(element, Class):
                 entries[decl_file].send(
                     self.__convert_class(element)
                 )
 
-            if isinstance(element, TypeDef):
+            elif isinstance(element, TypeDef):
                 entries[decl_file].send(
                     CPPTypeDef(
                         name=element.name,
                         type=element.type
+                    )
+                )
+            elif isinstance(element, EnumerationType):
+                entries[decl_file].send(
+                    CPPEnumerationType(
+                        name=element.name,
+                        enumerators=element.enumerators,
+                        type=element.type,
+                        accessibility=Accessibility(element.accessibility)
                     )
                 )
 
@@ -154,6 +163,15 @@ class OriginalCPPConverter(Converter):
                 converted_members.append(
                     CPPUnion(
                         children=self.__convert_members(member, member.fields),
+                        accessibility=Accessibility(member.accessibility)
+                    )
+                )
+            elif isinstance(member, EnumerationType):
+                converted_members.append(
+                    CPPEnumerationType(
+                        name=member.name,
+                        enumerators=member.enumerators,
+                        type=member.type,
                         accessibility=Accessibility(member.accessibility)
                     )
                 )
@@ -419,3 +437,40 @@ class CPPTypeDef(Entry):
     def __repr__(self):
         type_str = OriginalCPPConverter.type_string(self.type)
         return f'typedef {type_str}{self.name};'
+
+
+class CPPEnumerator(Entry):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.name = get_utf8(kwargs, 'name', b'<<unknown type name>>')
+        self.value = kwargs.get('value', None)
+        self.accessibility = None
+
+    def fill_value(self):
+        return 0
+
+    def __repr__(self):
+        return f'{self.name} = {self.value},'
+
+
+class CPPEnumerationType(Entry):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.name = get_utf8(kwargs, 'name', b'<<unknown type name>>')
+        self.type = kwargs.get('type', Type(name=b'<<unknown>>'))
+        self.enumerators = [CPPEnumerator(
+            name=x.name,
+            value=x.value
+        ) for x in kwargs.get('enumerators', [])]
+
+        self.accessibility = kwargs.get('accessibility', None)
+        self.children = CPPBlock(
+            children=self.enumerators,
+            accessibility=self.accessibility
+        )
+
+    def fill_value(self):
+        return len(self.enumerators)
+
+    def __repr__(self):
+        return f'enum {self.name} {self.children}'
