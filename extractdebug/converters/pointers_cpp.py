@@ -19,8 +19,7 @@ class PointersCPPConverter(OriginalCPPConverter):
             return output
 
         output += '\n\n'
-        output += f'namespace PTR {{\n'
-        output += f'    namespace {entry.name} {{\n'
+        output += f'namespace PTR_{entry.name} {{\n'
         for sub_entry in entry.children.children:
             if not isinstance(sub_entry, CPPMethod):
                 continue
@@ -33,9 +32,8 @@ class PointersCPPConverter(OriginalCPPConverter):
             if sub_entry.type:
                 type_str = OriginalCPPConverter.type_string(sub_entry.type)
 
-            output += '        '
+            output += '    '
             output += f'auto {sub_entry.name} = ({type_str.rstrip()} (*)({params_string})) {address};\n'
-        output += '    }\n'
         output += '}\n'
 
         return output

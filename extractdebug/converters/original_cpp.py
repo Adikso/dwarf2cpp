@@ -1,8 +1,8 @@
+import os
 from collections import defaultdict
-from orderedset import OrderedSet
 import numpy as np
 
-from extractdebug.converters.common import relative_path, type_mapping, test_utf8, get_utf8, demangle_type, EntriesStorage, Entry
+from extractdebug.converters.common import relative_path, test_utf8, get_utf8, demangle_type, EntriesStorage, Entry
 from extractdebug.converters.converter import Converter
 from extractdebug.extractors.extractor import Field, Accessibility, Method, TypeModifier, Union, Namespace, Struct, Class, TypeDef, Type
 
@@ -24,25 +24,38 @@ class OriginalCPPConverter(Converter):
         output = ''
         for file_path, entries in contents.items():
             file_relative_path = relative_path(base_path, file_path).decode('utf-8')
-            output += f'// Source file: {file_relative_path}\n'
+
+            simple_name = os.path.splitext(os.path.basename(file_relative_path))[0].upper()
+            file_output = f'#ifndef {simple_name}_H\n#define {simple_name}_H\n\n'
+            file_output += f'// Source file: {file_relative_path}\n'
 
             for included_file_path in self.includes[file_path]:
                 if included_file_path.startswith(base_path):
                     included_relative_path = relative_path(file_path, included_file_path)
                     include_name = included_relative_path.decode('utf-8')
-                    output += f'#include "{include_name}"\n'
+                    file_output += f'#include "{include_name}"\n'
                 else:
                     include_name = included_file_path.decode('utf-8')
-                    output += f'#include <{include_name}>\n'
+                    file_output += f'#include <{include_name}>\n'
 
             if self.includes[file_path]:
-                output += '\n'
+                file_output += '\n'
 
             for entry in entries:
                 if self.on_entry_render:
-                    output += f'{self.on_entry_render(entry)}\n\n'
+                    file_output += f'{self.on_entry_render(entry)}\n\n'
                 else:
-                    output += f'{entry}\n\n'
+                    file_output += f'{entry}\n\n'
+
+            file_output += '#endif'
+
+            output_dir = os.path.join('output', os.path.dirname(file_relative_path))
+            os.makedirs(output_dir, exist_ok=True)
+            output_file_path = os.path.join('output', file_relative_path)
+            with open(output_file_path, 'w') as file:
+                file.write(file_output)
+
+            output += file_output
 
         return output
 
