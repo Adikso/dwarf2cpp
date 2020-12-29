@@ -16,7 +16,7 @@ def convert(result, format):
     if not converter:
         return None
 
-    return converter().convert(result)
+    return converter(result).convert()
 
 
 def find_extractor(file):
@@ -29,7 +29,7 @@ def find_extractor(file):
 
 def find_converter(format):
     for converter in all_converters:
-        if converter().name() == format:
+        if converter.name() == format:
             return converter
 
     return None

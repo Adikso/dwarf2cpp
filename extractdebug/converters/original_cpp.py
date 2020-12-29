@@ -8,29 +8,28 @@ from extractdebug.extractors.extractor import Field, Accessibility, Method, Type
 
 
 class OriginalCPPConverter(Converter):
-    def __init__(self, on_entry_render=None):
+    def __init__(self, result, on_entry_render=None):
+        super().__init__(result)
         self.includes = defaultdict(set)
         self.on_entry_render = on_entry_render
-        self.result = None
 
-    def name(self):
+    @staticmethod
+    def name():
         return 'cpp'
 
-    def convert(self, result):
-        self.result = result
-        base_path = result.base_dir
-        contents = self.__convert_elements(result.elements)
+    def convert(self):
+        contents = self.__convert_elements(self.result.elements)
 
         output = ''
         for file_path, entries in contents.items():
-            file_relative_path = relative_path(base_path, file_path).decode('utf-8')
+            file_relative_path = relative_path(self.result.base_dir, file_path).decode('utf-8')
 
             simple_name = os.path.splitext(os.path.basename(file_relative_path))[0].upper()
-            file_output = f'#ifndef {simple_name}_H\n#define {simple_name}_H\n\n'
-            file_output += f'// Source file: {file_relative_path}\n'
+            file_output = f'// Source file: {file_relative_path}\n'
+            file_output += f'#ifndef {simple_name}_H\n#define {simple_name}_H\n\n'
 
             for included_file_path in self.includes[file_path]:
-                if included_file_path.startswith(base_path):
+                if included_file_path.startswith(self.result.base_dir):
                     included_relative_path = relative_path(file_path, included_file_path)
                     include_name = included_relative_path.decode('utf-8')
                     file_output += f'#include "{include_name}"\n'
@@ -47,7 +46,7 @@ class OriginalCPPConverter(Converter):
                 else:
                     file_output += f'{entry}\n\n'
 
-            file_output += '#endif'
+            file_output += '#endif\n\n'
 
             output_dir = os.path.join('output', os.path.dirname(file_relative_path))
             os.makedirs(output_dir, exist_ok=True)
@@ -66,13 +65,14 @@ class OriginalCPPConverter(Converter):
             if not element.decl_file:
                 continue
 
+            # Check if file is in project
             cu, file = element.decl_file
             decl_files = self.result.files[cu]
             if decl_files and file.id not in decl_files:
                 continue
 
             decl_file = decl_files[file.id].full_path()
-            if not decl_file.startswith(self.result.base_dir) or b'<built-in>' in decl_file:
+            if b'<built-in>' in decl_file or not decl_file.startswith(self.result.base_dir):
                 continue
 
             if isinstance(element, Namespace):
@@ -234,10 +234,10 @@ class CPPParameter:
         self.offset = kwargs.get('offset', 0)
 
     def __repr__(self):
+        type_str = f'void * /*<<ERROR_UNKNOWN - {hex(self.offset if self.offset else 0)}>>*/ '
         if self.type:
             type_str = OriginalCPPConverter.type_string(self.type)
-        else:
-            type_str = f'void * /*<<ERROR_UNKNOWN - {hex(self.offset if self.offset else 0)}>>*/ '
+
         return f'{type_str}{self.name}'
 
 
@@ -251,10 +251,10 @@ class CPPMethod:
         self.low_pc = kwargs.get('low_pc', None)
 
     def __repr__(self):
-        if self.name.startswith('~'):
-            params_string = ''
-        else:
+        params_string = ''
+        if not self.name.startswith('~'):
             params_string = ", ".join([str(x) for x in self.parameters])
+
         output = f'{self.name}({params_string});'
 
         if self.type:
@@ -343,10 +343,9 @@ class CPPInheritance:
         self.accessibility = kwargs.get('accessibility', None)
 
     def __repr__(self):
+        output = '<<invalid>>'
         if self.cls and test_utf8(self.cls.name):
             output = self.cls.name.decode("utf-8")
-        else:
-            output = '<<invalid>>'
 
         if self.accessibility != Accessibility.private:
             output = f'{self.accessibility.name} {output}'

@@ -1,8 +1,12 @@
 class Converter:
-    def name(self):
+    def __init__(self, result):
+        self.result = result
+
+    @staticmethod
+    def name():
         raise NotImplementedError
 
-    def convert(self, result):
+    def convert(self):
         raise NotImplementedError
 
 

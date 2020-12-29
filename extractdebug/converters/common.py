@@ -18,10 +18,6 @@ def get_project_files(result):
     return base_path, project_files
 
 
-def is_project_file(cu_offset, decl_file):
-    pass
-
-
 def relative_path(base_path, file_path):
     path = os.path.relpath(file_path, base_path)
     if path.startswith(b'./'):
@@ -43,6 +39,9 @@ def test_utf8(data):
 
 def get_utf8(source, name, default):
     value = source.get(name, None)
+    if value and isinstance(value, str):
+        return value
+
     if not value or not test_utf8(value):
         return default.decode('utf-8')
 
