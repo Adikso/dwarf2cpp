@@ -1,4 +1,6 @@
 import os
+import re
+from collections import defaultdict
 
 from elftools.common.exceptions import ELFError
 from elftools.common.utils import struct_parse
@@ -45,6 +47,8 @@ class DwarfExtractor(Extractor):
     def __init__(self):
         self._types = {}
         self._subprograms = {}
+        self._subprograms_name = defaultdict(set)
+        self._subprograms_incomplete = set()
         self.dwarf_info = None
         self.cu_files = {}
 
@@ -70,12 +74,22 @@ class DwarfExtractor(Extractor):
             elements += self.__parse_compilation_unit(cu)
             cus.append(cu)
 
+        self.__fix_constructors()
+
         base_dir = cus[0].get_top_DIE().attributes[Attribute.COMP_DIR].value
         first_file = cus[0].get_top_DIE().attributes[Attribute.NAME].value
         if os.path.isabs(first_file):
             base_dir = os.path.commonpath([base_dir, first_file])
 
         return ExtractorResult(file, self.cu_files, elements, base_dir)
+
+    def __fix_constructors(self):
+        for subprogram in self._subprograms_incomplete:
+            similar = self._subprograms_name[subprogram.name]
+            for other_subprogram in similar:
+                if other_subprogram.low_pc:
+                    subprogram.low_pc = other_subprogram.low_pc
+                    break
 
     def __parse_children(self, die):
         elements = []
@@ -177,14 +191,16 @@ class DwarfExtractor(Extractor):
 
         # Tag specific attributes
         if child.tag == Tag.SUB_PROGRAM:
+            method_name = attrs[Attribute.NAME].value if Attribute.NAME in attrs else None
             method = Method(
-                name=attrs[Attribute.NAME].value,
+                name=method_name,
                 type=class_type,
                 accessibility=accessibility,
                 static=Attribute.OBJECT_POINTER not in attrs,
                 offset=child.offset,
                 decl_file=self.__get_file(child),
-                fully_defined=False
+                fully_defined=False,
+                linkage_name=attrs[Attribute.LINKAGE_NAME].value if Attribute.LINKAGE_NAME in attrs else None,
             )
 
             for sub_child in child.iter_children():
@@ -197,6 +213,10 @@ class DwarfExtractor(Extractor):
                     ))
 
             self._subprograms[child.offset] = method
+            if method_name:
+                self._subprograms_name[method_name].add(method)
+
+            self._subprograms_incomplete.add(method)
             return self._subprograms[child.offset]
         elif child.tag == Tag.MEMBER:
             if class_type:
@@ -256,11 +276,22 @@ class DwarfExtractor(Extractor):
 
     def __parse_sub_program(self, die):
         if Attribute.SPECIFICATION not in die.attributes:
-            return
+            if not (Attribute.NAME not in die.attributes and Attribute.LINKAGE_NAME in die.attributes):
+                return
 
-        specification_die_offset = die.get_DIE_from_attribute(Attribute.SPECIFICATION).offset
-        if specification_die_offset not in self._subprograms:
-            self.__parse_member(die.get_DIE_from_attribute(Attribute.SPECIFICATION))
+            new_member = self.__parse_member(die)
+            match = re.match('_ZN[0-9]+([a-zA-z]+)C[0-9]', die.attributes[Attribute.LINKAGE_NAME].value.decode('utf-8'))
+            if not match:
+                return
+
+            new_member.name = match.group(1).encode('utf-8')
+            self._subprograms_name[new_member.name].add(new_member)
+
+            specification_die_offset = die.offset
+        else:
+            specification_die_offset = die.get_DIE_from_attribute(Attribute.SPECIFICATION).offset
+            if specification_die_offset not in self._subprograms:
+                self.__parse_member(die.get_DIE_from_attribute(Attribute.SPECIFICATION))
 
         existing_method = self._subprograms[specification_die_offset]
         for child in die.iter_children():
@@ -276,6 +307,9 @@ class DwarfExtractor(Extractor):
             existing_method.low_pc = die.attributes[Attribute.LOW_PC].value
 
         existing_method.fully_defined = True
+
+        if existing_method.low_pc:
+            self._subprograms_incomplete.remove(existing_method)
 
     def __parse_files_info(self, dwarf_info, structs, offset=0):
         files = {}
