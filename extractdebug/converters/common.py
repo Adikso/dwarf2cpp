@@ -71,3 +71,8 @@ class EntriesStorage:
                 self.quick_access[entry.id()] = entry
         else:
             self.quick_access[entry.id()] = entry
+
+
+def chunks(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]

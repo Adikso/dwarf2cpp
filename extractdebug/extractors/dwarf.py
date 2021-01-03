@@ -1,11 +1,13 @@
 import os
 import re
 from collections import defaultdict
+import numpy as np
 
 from elftools.common.exceptions import ELFError
 from elftools.common.utils import struct_parse
 from elftools.elf.elffile import ELFFile
 
+from extractdebug.converters.common import chunks
 from extractdebug.extractors.extractor import Extractor, Field, Class, ExtractorResult, Accessibility, Method, Parameter, Type, TypeModifier, Union, Struct, Namespace, TypeDef, \
     File, Enumerator, EnumerationType
 
@@ -26,6 +28,7 @@ class Tag:
     NAMESPACE = 'DW_TAG_namespace'
     TYPEDEF = 'DW_TAG_typedef'
     ENUMERATION_TYPE = 'DW_TAG_enumeration_type'
+    ARRAY_TYPE = 'DW_TAG_array_type'
 
 
 class Attribute:
@@ -42,6 +45,7 @@ class Attribute:
     LOW_PC = 'DW_AT_low_pc'
     COMP_DIR = 'DW_AT_comp_dir'
     VIRTUALITY = 'DW_AT_virtuality'
+    BYTE_SIZE = 'DW_AT_byte_size'
 
 
 class DwarfExtractor(Extractor):
@@ -222,13 +226,19 @@ class DwarfExtractor(Extractor):
             return self._subprograms[child.offset]
         elif child.tag == Tag.MEMBER:
             if class_type:
+                value = None
+                if Attribute.CONST_VALUE in attrs:
+                    value = attrs[Attribute.CONST_VALUE].value
+                    if class_type.array and class_type.byte_size:
+                        value = list(chunks(value, class_type.byte_size))
+
                 return Field(
                     name=attrs[Attribute.NAME].value if Attribute.NAME in attrs else b'ERROR_UNKNOWN',
                     decl_file=self.__get_file(child),
                     type=class_type,
                     accessibility=accessibility,
                     static=Attribute.EXTERNAL in attrs,
-                    const_value=attrs[Attribute.CONST_VALUE].value if Attribute.CONST_VALUE in attrs else None
+                    const_value=value
                 )
 
             type_die = child.get_DIE_from_attribute(Attribute.TYPE)
@@ -343,6 +353,14 @@ class DwarfExtractor(Extractor):
                 if entry.tag == Tag.REFERENCE_TYPE:
                     type.modifiers.insert(0, TypeModifier.reference)
 
+                if entry.tag == Tag.ARRAY_TYPE:
+                    type.array = True
+
+                if Attribute.BYTE_SIZE in entry.attributes:
+                    type.byte_size = entry.attributes[Attribute.BYTE_SIZE].value
+                if entry.tag == Tag.BASE_TYPE:
+                    type.base = True
+
                 if Attribute.TYPE not in entry.attributes:
                     if Attribute.LINKAGE_NAME in entry.attributes:
                         type.name = entry.attributes[Attribute.LINKAGE_NAME].value
@@ -350,6 +368,10 @@ class DwarfExtractor(Extractor):
                     return None
 
                 entry = entry.get_DIE_from_attribute(Attribute.TYPE)
+                if Attribute.BYTE_SIZE in entry.attributes:
+                    type.byte_size = entry.attributes[Attribute.BYTE_SIZE].value
+                if entry.tag == Tag.BASE_TYPE:
+                    type.base = True
 
             type.name = entry.attributes[Attribute.NAME].value
 

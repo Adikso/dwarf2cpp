@@ -103,6 +103,9 @@ class Type:
         self.namespaces = kwargs.get('namespaces', deque())
         self.modifiers = kwargs.get('modifiers', [])
         self.decl_file = kwargs.get('decl_file', None)
+        self.array = kwargs.get('array', False)
+        self.byte_size = kwargs.get('byte_size', False)
+        self.base = kwargs.get('base', False)
 
 
 class TypeModifier(Enum):

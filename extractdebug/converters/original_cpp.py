@@ -307,6 +307,15 @@ class CPPField:
                     data_bytes = np.array(self.const_value, dtype=np.uint8)
                     data_as_float = str(data_bytes.view(dtype=np.float32))
                     output += f' = {data_as_float[1:-1]}f'
+                elif self.type.array:
+                    output += f'[{len(self.const_value)}]'
+
+                    if self.type.base and b'int' in self.type.name:
+                        values = []
+                        for bytes_group in self.const_value:
+                            values.append(int.from_bytes(bytes(bytes_group), byteorder='little'))
+                        output += f' = {{ {", ".join(map(str, values))} }}'
+
                 else:
                     output += f' /* = {const_value_str} */'
             else:
