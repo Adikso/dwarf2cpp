@@ -160,7 +160,8 @@ class DwarfExtractor(Extractor):
             members=members,
             inheritance_class=inheritance_class,
             inheritance_accessibility=inheritance_accessibility,
-            decl_file=self.__get_file(die)
+            decl_file=self.__get_file(die),
+            byte_size=die.attributes[Attribute.BYTE_SIZE].value if Attribute.BYTE_SIZE in die.attributes else None
         )
 
     def __parse_struct_type(self, die):
@@ -173,7 +174,8 @@ class DwarfExtractor(Extractor):
         return Struct(
             name=class_name,
             members=members,
-            decl_file=self.__get_file(die)
+            decl_file=self.__get_file(die),
+            byte_size=die.attributes[Attribute.BYTE_SIZE].value if Attribute.BYTE_SIZE in die.attributes else None
         )
 
     def __parse_union_type(self, die):
@@ -373,6 +375,16 @@ class DwarfExtractor(Extractor):
                     type.byte_size = entry.attributes[Attribute.BYTE_SIZE].value
                 if entry.tag == Tag.BASE_TYPE:
                     type.base = True
+
+            # Searching byte size
+            if not type.byte_size:
+                size_entry = die.get_DIE_from_attribute(Attribute.TYPE)
+                while Attribute.BYTE_SIZE not in size_entry.attributes:
+                    if Attribute.TYPE not in size_entry.attributes:
+                        break
+                    size_entry = size_entry.get_DIE_from_attribute(Attribute.TYPE)
+                if Attribute.BYTE_SIZE in size_entry.attributes:
+                    type.byte_size = size_entry.attributes[Attribute.BYTE_SIZE].value
 
             type.name = entry.attributes[Attribute.NAME].value
 

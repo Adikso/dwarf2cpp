@@ -90,7 +90,8 @@ class OriginalCPPConverter(Converter):
                 entries[decl_file].send(
                     CPPStruct(
                         name=element.name,
-                        children=self.__convert_members(element, element.members)
+                        children=self.__convert_members(element, element.members),
+                        byte_size=element.byte_size
                     )
                 )
 
@@ -150,10 +151,13 @@ class OriginalCPPConverter(Converter):
                     continue
 
                 # Guess array size
-                if member.type.array and member.data_member_location and i + 1 < len(members):
-                    next_member = members[i + 1]
-                    if isinstance(next_member, Field) and next_member.data_member_location and member.type.byte_size:
+                if member.type.array and member.data_member_location and member.type.byte_size:
+                    if i + 1 < len(members) and isinstance(members[i + 1], Field) and members[i + 1].data_member_location:
+                        next_member = members[i + 1]
                         bytes_count = next_member.data_member_location - member.data_member_location
+                        member.array_size = bytes_count // member.type.byte_size
+                    else:
+                        bytes_count = parent.byte_size - member.data_member_location
                         member.array_size = bytes_count // member.type.byte_size
 
                 converted_members.append(CPPField(

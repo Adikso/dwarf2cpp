@@ -30,6 +30,7 @@ class Class:
         self.inheritance_accessibility = kwargs.get('inheritance_accessibility', None)
         self.decl_file = kwargs.get('decl_file', None)
         self.parent = kwargs.get('parent', None)
+        self.byte_size = kwargs.get('byte_size', None)
 
     def __repr__(self):
         return f'Class{{name={self.name}, fields={self.members}'
@@ -41,6 +42,7 @@ class Struct:
         self.members = kwargs.get('members', None)
         self.decl_file = kwargs.get('decl_file', None)
         self.parent = kwargs.get('parent', None)
+        self.byte_size = kwargs.get('byte_size', None)
 
     def __repr__(self):
         return f'Struct{{name={self.name}, fields={self.members}'
