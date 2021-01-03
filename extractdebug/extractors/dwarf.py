@@ -238,7 +238,9 @@ class DwarfExtractor(Extractor):
                     type=class_type,
                     accessibility=accessibility,
                     static=Attribute.EXTERNAL in attrs,
-                    const_value=value
+                    const_value=value,
+                    array_size=len(value) if value and isinstance(value, list) else None,
+                    data_member_location=attrs[Attribute.DATA_MEMBER_LOCATION].value if Attribute.DATA_MEMBER_LOCATION in attrs else None
                 )
 
             type_die = child.get_DIE_from_attribute(Attribute.TYPE)

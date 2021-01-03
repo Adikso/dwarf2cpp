@@ -61,6 +61,8 @@ class Field:
         self.const_value = kwargs.get('const_value', None)
         self.parent = kwargs.get('parent', None)
         self.decl_file = kwargs.get('decl_file', None)
+        self.data_member_location = kwargs.get('data_member_location', None)
+        self.array_size = kwargs.get('array_size', None)
 
     def __repr__(self):
         return f'Field{{name={self.name}, type={self.type}, accessibility={Accessibility(self.accessibility)}}}'
