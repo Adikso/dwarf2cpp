@@ -391,7 +391,7 @@ class CPPInheritance:
     def __repr__(self):
         output = '<<invalid>>'
         if self.cls and test_utf8(self.cls.name):
-            output = self.cls.name.decode("utf-8")
+            output = OriginalCPPConverter.type_string(self.cls)[:-1]
 
         if self.accessibility != Accessibility.private:
             output = f'{self.accessibility.name} {output}'
