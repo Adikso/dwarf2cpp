@@ -318,9 +318,8 @@ class DwarfExtractor(Extractor):
         if Attribute.LOW_PC in die.attributes:
             existing_method.low_pc = die.attributes[Attribute.LOW_PC].value
 
-        existing_method.fully_defined = True
-
         if existing_method.low_pc:
+            existing_method.fully_defined = True
             self._subprograms_incomplete.remove(existing_method)
 
     def __parse_files_info(self, dwarf_info, structs, offset=0):

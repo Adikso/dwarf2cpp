@@ -146,6 +146,9 @@ class OriginalCPPConverter(Converter):
         converted_members = []
         for member in members:
             if isinstance(member, Field):
+                if member.type.name == b'__vtbl_ptr_type':
+                    continue
+
                 converted_members.append(CPPField(
                     accessibility=Accessibility(member.accessibility) if member.accessibility < 3 else Accessibility.public,
                     type=member.type,
