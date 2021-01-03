@@ -41,6 +41,7 @@ class Attribute:
     LINKAGE_NAME = 'DW_AT_linkage_name'
     LOW_PC = 'DW_AT_low_pc'
     COMP_DIR = 'DW_AT_comp_dir'
+    VIRTUALITY = 'DW_AT_virtuality'
 
 
 class DwarfExtractor(Extractor):
@@ -197,6 +198,7 @@ class DwarfExtractor(Extractor):
                 type=class_type,
                 accessibility=accessibility,
                 static=Attribute.OBJECT_POINTER not in attrs,
+                virtual=Attribute.VIRTUALITY in attrs and attrs[Attribute.VIRTUALITY].value == 1,
                 offset=child.offset,
                 decl_file=self.__get_file(child),
                 fully_defined=False,

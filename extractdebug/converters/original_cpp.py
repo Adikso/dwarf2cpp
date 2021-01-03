@@ -201,6 +201,7 @@ class OriginalCPPConverter(Converter):
                     type=return_type,
                     name=member.name,
                     static=member.static,
+                    virtual=member.virtual,
                     low_pc=member.low_pc,
                     parameters=parameters)
                 )
@@ -261,7 +262,8 @@ class CPPMethod:
     def __init__(self, **kwargs):
         self.name = get_utf8(kwargs, 'name', b'<<unknown method name>>')
         self.type = kwargs.get('type', Type(name='<<unknown>>'))
-        self.static = kwargs.get('static', None)
+        self.static = kwargs.get('static', False)
+        self.virtual = kwargs.get('virtual', False)
         self.parameters = kwargs.get('parameters', None)
         self.accessibility = kwargs.get('accessibility', None)
         self.low_pc = kwargs.get('low_pc', None)
@@ -279,6 +281,9 @@ class CPPMethod:
 
         if self.static:
             output = f'static {output}'
+
+        if self.virtual:
+            output = f'virtual {output}'
 
         return output
 

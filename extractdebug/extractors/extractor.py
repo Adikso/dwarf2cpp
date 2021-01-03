@@ -118,6 +118,7 @@ class Method:
         self.type = kwargs.get('type', None)
         self.accessibility = kwargs.get('accessibility', Accessibility.private)
         self.static = kwargs.get('static', False)
+        self.virtual = kwargs.get('virtual', False)
         self.parameters = kwargs.get('parameters', [])
         self.direct_parameters = kwargs.get('direct_parameters', [])
         self.parent = kwargs.get('parent', None)
