@@ -29,6 +29,7 @@ class Tag:
     TYPEDEF = 'DW_TAG_typedef'
     ENUMERATION_TYPE = 'DW_TAG_enumeration_type'
     ARRAY_TYPE = 'DW_TAG_array_type'
+    SUBRANGE_TYPE = 'DW_TAG_subrange_type'
 
 
 class Attribute:
@@ -46,6 +47,7 @@ class Attribute:
     COMP_DIR = 'DW_AT_comp_dir'
     VIRTUALITY = 'DW_AT_virtuality'
     BYTE_SIZE = 'DW_AT_byte_size'
+    UPPER_BOUND = 'DW_AT_upper_bound'
 
 
 class DwarfExtractor(Extractor):
@@ -160,8 +162,7 @@ class DwarfExtractor(Extractor):
             members=members,
             inheritance_class=inheritance_class,
             inheritance_accessibility=inheritance_accessibility,
-            decl_file=self.__get_file(die),
-            byte_size=die.attributes[Attribute.BYTE_SIZE].value if Attribute.BYTE_SIZE in die.attributes else None
+            decl_file=self.__get_file(die)
         )
 
     def __parse_struct_type(self, die):
@@ -240,9 +241,7 @@ class DwarfExtractor(Extractor):
                     type=class_type,
                     accessibility=accessibility,
                     static=Attribute.EXTERNAL in attrs,
-                    const_value=value,
-                    array_size=len(value) if value and isinstance(value, list) else None,
-                    data_member_location=attrs[Attribute.DATA_MEMBER_LOCATION].value if Attribute.DATA_MEMBER_LOCATION in attrs else None
+                    const_value=value
                 )
 
             type_die = child.get_DIE_from_attribute(Attribute.TYPE)
@@ -358,11 +357,10 @@ class DwarfExtractor(Extractor):
 
                 if entry.tag == Tag.ARRAY_TYPE:
                     type.array = True
-
-                if Attribute.BYTE_SIZE in entry.attributes:
-                    type.byte_size = entry.attributes[Attribute.BYTE_SIZE].value
-                if entry.tag == Tag.BASE_TYPE:
-                    type.base = True
+                    for array_child in entry.iter_children():
+                        if array_child.tag == Tag.SUBRANGE_TYPE:
+                            type.array_size = array_child.attributes[Attribute.UPPER_BOUND].value + 1
+                            break
 
                 if Attribute.TYPE not in entry.attributes:
                     if Attribute.LINKAGE_NAME in entry.attributes:
@@ -371,20 +369,6 @@ class DwarfExtractor(Extractor):
                     return None
 
                 entry = entry.get_DIE_from_attribute(Attribute.TYPE)
-                if Attribute.BYTE_SIZE in entry.attributes:
-                    type.byte_size = entry.attributes[Attribute.BYTE_SIZE].value
-                if entry.tag == Tag.BASE_TYPE:
-                    type.base = True
-
-            # Searching byte size
-            if not type.byte_size:
-                size_entry = die.get_DIE_from_attribute(Attribute.TYPE)
-                while Attribute.BYTE_SIZE not in size_entry.attributes:
-                    if Attribute.TYPE not in size_entry.attributes:
-                        break
-                    size_entry = size_entry.get_DIE_from_attribute(Attribute.TYPE)
-                if Attribute.BYTE_SIZE in size_entry.attributes:
-                    type.byte_size = size_entry.attributes[Attribute.BYTE_SIZE].value
 
             type.name = entry.attributes[Attribute.NAME].value
 

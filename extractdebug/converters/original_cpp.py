@@ -90,8 +90,7 @@ class OriginalCPPConverter(Converter):
                 entries[decl_file].send(
                     CPPStruct(
                         name=element.name,
-                        children=self.__convert_members(element, element.members),
-                        byte_size=element.byte_size
+                        children=self.__convert_members(element, element.members)
                     )
                 )
 
@@ -150,24 +149,12 @@ class OriginalCPPConverter(Converter):
                 if member.type.name == b'__vtbl_ptr_type':
                     continue
 
-                # Guess array size
-                if member.type.array and member.data_member_location and member.type.byte_size:
-                    if i + 1 < len(members) and isinstance(members[i + 1], Field) and members[i + 1].data_member_location:
-                        next_member = members[i + 1]
-                        bytes_count = next_member.data_member_location - member.data_member_location
-                        member.array_size = bytes_count // member.type.byte_size
-                    else:
-                        bytes_count = parent.byte_size - member.data_member_location
-                        member.array_size = bytes_count // member.type.byte_size
-
                 converted_members.append(CPPField(
                     accessibility=Accessibility(member.accessibility) if member.accessibility < 3 else Accessibility.public,
                     type=member.type,
                     name=member.name,
                     static=member.static,
-                    const_value=member.const_value,
-                    array_size=member.array_size,
-                    data_member_location=member.data_member_location
+                    const_value=member.const_value
                 ))
 
                 if member.type and member.type.decl_file and member.type.decl_file[1] != member.decl_file[1]:
@@ -311,8 +298,6 @@ class CPPField:
         self.accessibility = kwargs.get('accessibility', None)
         self.static = kwargs.get('static', None)
         self.const_value = kwargs.get('const_value', None)
-        self.array_size = kwargs.get('array_size', None)
-        self.data_member_location = kwargs.get('data_member_location', None)
 
     def __repr__(self):
         type_str = OriginalCPPConverter.type_string(self.type)
@@ -326,7 +311,7 @@ class CPPField:
                     data_as_float = str(data_bytes.view(dtype=np.float32))
                     output += f' = {data_as_float[1:-1]}f'
                 elif self.type.array:
-                    output += f'[{self.array_size}]'
+                    output += f'[{self.type.array_size}]'
 
                     if self.const_value and self.type.base and b'int' in self.type.name:
                         values = []
@@ -339,7 +324,7 @@ class CPPField:
             else:
                 output += f' = {const_value_str}'
         elif self.type.array:
-            output += f'[{self.array_size}]'
+            output += f'[{self.type.array_size}]'
 
         if self.static:
             output = f'static {output}'
