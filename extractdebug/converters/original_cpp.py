@@ -162,6 +162,7 @@ class OriginalCPPConverter(Converter):
             elif isinstance(member, Union):
                 converted_members.append(
                     CPPUnion(
+                        anonymous=True,
                         children=self.__convert_members(member, member.fields),
                         accessibility=Accessibility(member.accessibility)
                     )
@@ -176,9 +177,6 @@ class OriginalCPPConverter(Converter):
                     )
                 )
             elif isinstance(member, Method):
-                if not member.fully_defined:
-                    continue
-
                 member_params = member.parameters if member.parameters else member.direct_parameters
                 parameters = []
                 for i, param in enumerate(member_params):
@@ -359,6 +357,7 @@ class CPPUnion(CPPBlock, Entry):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = get_utf8(kwargs, 'name', b'<<unknown union name>>')
+        self.anonymous = kwargs.get('anonymous', False)
 
     def fill_value(self):
         return len(self.children)
@@ -366,7 +365,7 @@ class CPPUnion(CPPBlock, Entry):
     def __repr__(self):
         output = 'union '
 
-        if self.name:
+        if not self.anonymous and self.name:
             output += self.name + ' '
 
         return output + super().__repr__()

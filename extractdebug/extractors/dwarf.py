@@ -1,7 +1,6 @@
 import os
 import re
 from collections import defaultdict
-import numpy as np
 
 from elftools.common.exceptions import ELFError
 from elftools.common.utils import struct_parse
